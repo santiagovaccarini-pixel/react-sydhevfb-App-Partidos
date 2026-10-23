@@ -64,7 +64,9 @@ La regla existente es que lo igual en otro módulo sea igual en toda la web
   base que deja cargar sin señal, `AvisoDeEspera`: el aviso dorado con cuántos cambios esperan
   para subir y, con señal, «Subir ahora» (UI-072); la cola, en `domain/filaDeEspera.js`. En
   las tarjetas de Nuevos casos de Lesiones, lo que espera va en dorado claro con la pastilla
-  «Espera para subir» (`lesiones.css`, UI-073).
+  «Espera para subir» (`lesiones.css`, UI-073). En las tablas de los V.R. de GPS
+  (`TablaDeReferencia`, `enEspera`), cada número que espera va en dorado claro, con su leyenda
+  (`evaluaciones.css`, UI-079).
 
 Revisá `src/style.css`, `portal.css`, `training.css`, `lesiones.css`,
 `evaluaciones.css` y `gps.css` antes de crear estilos; mantené sus convenciones de color,

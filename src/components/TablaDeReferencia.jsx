@@ -27,7 +27,9 @@ const TOQUE_QUIETO = 10;
 // ocultar (de useOcultar, el mismo para todas las tablas de la pantalla):
 // tocar el nombre de una columna o de una fila pregunta si se oculta
 // (Santiago, 15/10). Sin ocultar, se ven todas.
-export const TablaDeReferencia = ({ columnas: todasLasColumnas, filas: todasLasFilas, texto, interpretar, onCambiar, primera = null, minimo = null, ocultar = null }) => {
+// enEspera(fila, columna): si ese número se cambió sin señal y espera para
+// subir (va en el color de lo que espera, con leyendaEspera al pasar).
+export const TablaDeReferencia = ({ columnas: todasLasColumnas, filas: todasLasFilas, texto, interpretar, onCambiar, primera = null, minimo = null, ocultar = null, enEspera = null, leyendaEspera = "" }) => {
   const columnas = ocultar ? todasLasColumnas.filter((columna) => !ocultar.columnaOculta(columna.clave)) : todasLasColumnas;
   const filas = ocultar ? todasLasFilas.filter((fila) => !ocultar.filaOculta(fila.clave)) : todasLasFilas;
   const [editando, setEditando] = useState(null);
@@ -132,11 +134,13 @@ export const TablaDeReferencia = ({ columnas: todasLasColumnas, filas: todasLasF
                   const clave = claveDe(fila, columna);
                   const aca = editando && claveDe(editando.fila, editando.columna) === clave;
                   const seCambia = editable && columna.editable !== false && fila.editable !== false;
+                  const espera = Boolean(enEspera?.(fila, columna));
                   return (
                     <td
                       key={columna.clave}
                       ref={(celda) => (celda ? celdas.current.set(clave, celda) : celdas.current.delete(clave))}
-                      className={[seCambia && "evaluaciones-vr-celda", guardando === clave && "guardando"].filter(Boolean).join(" ") || undefined}
+                      className={[seCambia && "evaluaciones-vr-celda", guardando === clave && "guardando", espera && "espera"].filter(Boolean).join(" ") || undefined}
+                      title={espera ? leyendaEspera || undefined : undefined}
                       tabIndex={seCambia && !aca ? 0 : undefined}
                       onDoubleClick={seCambia ? () => empezar(fila, columna) : undefined}
                       onTouchEnd={seCambia ? (evento) => tocar(evento, fila, columna) : undefined}

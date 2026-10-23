@@ -430,6 +430,40 @@
 .evaluaciones-marco .evaluaciones-vr td.guardando {
   opacity: 0.5;
 }
+/* Un número cambiado sin señal que espera para subir (paso 3c.4 de «cargar
+   sin señal…», GPS): el dorado claro de lo que espera en la Base, con su
+   leyenda arriba. */
+.evaluaciones-marco .evaluaciones-vr td.espera,
+.evaluaciones-marco .evaluaciones-vr td.espera.evaluaciones-vr-celda:hover {
+  background: #f6e7b4;
+  color: #3b2f0b;
+}
+.evaluaciones-marco .referencias-leyenda-espera {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  /* Sobre el fondo oscuro, como los nombres de los campos de arriba. */
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  font-weight: 700;
+}
+/* El «de partido» que cambió sin señal, abajo del nombre del V.R. */
+.evaluaciones-marco .referencias-espera {
+  margin: 0 0 10px;
+}
+.evaluaciones-marco .referencias-espera .lesiones-espera {
+  display: inline-block;
+  white-space: normal;
+}
+.evaluaciones-marco .referencias-leyenda-espera i {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid #b8952c;
+  border-radius: 4px;
+  background: #f6e7b4;
+}
 .evaluaciones-marco .evaluaciones-vr-entrada {
   width: 100%;
   min-width: 72px;

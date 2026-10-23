@@ -8,7 +8,10 @@
 // (Santiago, 23/10: sin señal el «Vs» va a mano, lo dejado para revisar
 // «Queda en el aparato» y al subir valen las reglas del «Mismo CSV»); la
 // 3c.3: «Pegar desde una planilla» (al subir, lo que ya está no se carga de
-// nuevo y la Regla 1 espera y pregunta). Acá,
+// nuevo y la Regla 1 espera y pregunta); la 3c.4: los V.R. (Santiago, 23/10,
+// en un cuestionario: «Números y "de partido"»; si otra persona cambió el
+// mismo número, gana el último y avisa; agregar, renombrar, borrar y la
+// planilla, con señal). Acá,
 // sin pantalla: qué queda en la cola con cada cosa que se hace, cómo se ve
 // lo que espera y cómo se sube.
 //
@@ -33,6 +36,12 @@
 //   · { tipo: "pegado", id: "local:…", dispositivo, filas, reemplazar?,
 //     chocan? }: lo pegado sin señal (de uno o más días), con sus filas como
 //     las de un día.
+//   · { tipo: "vr", id, cual, clave, valor, antes }: un número de un V.R.
+//     (como gps_referencia_cambiar: cual, "promedio", "desvio" o una
+//     categoría; valor null lo vacía). antes: lo que se veía antes del
+//     primer cambio (al subir, si otra persona lo cambió, se avisa).
+//   · { tipo: "dePartido", dispositivo, vr, antes }: el V.R. de partido del
+//     dispositivo (vr: su id, o null si ninguno); antes: el que era.
 import { esLocal, nuevoIdLocal } from "../evaluaciones/espera.js";
 import { filasDeLaMismaSesion, filasEnOtroCsv, filasYaEnLaBase } from "./cargar.js";
 import { ESTADOS, diasDeLaMismaSesion, planDeLoPegado } from "./importar.js";
@@ -140,6 +149,35 @@ export const sinEnCurso = (cola, id) => cola.filter((uno) => !(uno.tipo === "enC
 // Las cargas sin terminar de este aparato.
 export const enCursoEnEspera = (cola = []) => cola.filter((uno) => uno.tipo === "enCurso");
 
+// Un número de un V.R. (el mismo, cambiado otra vez, queda el último; lo que
+// se veía antes, el del primero). Vuelto a como estaba, ya no espera.
+const sinVacio = (valor) => (valor === undefined ? null : valor);
+const esDeLaFila = (cual) => cual === "promedio" || cual === "desvio";
+export const valorDelVr = (referencia, cual, clave) => sinVacio((esDeLaFila(cual) ? referencia?.[cual] : referencia?.categorias?.[cual])?.[clave]);
+export const conValorDeVr = (cola, { id, cual, clave, valor, antes }) => {
+  const mismo = (uno) => uno.tipo === "vr" && uno.id === id && uno.cual === cual && uno.clave === clave;
+  const ya = cola.find(mismo);
+  const primero = ya ? ya.antes : sinVacio(antes);
+  const sin = cola.filter((uno) => !mismo(uno));
+  return sinVacio(valor) === primero ? sin : [...sin, { tipo: "vr", id, cual, clave, valor: sinVacio(valor), antes: primero }];
+};
+
+// El V.R. de partido de un dispositivo (vr: su id, o null para ninguno),
+// como el número: queda el último y, vuelto al de antes, ya no espera.
+export const conDePartido = (cola, { dispositivo, vr = null, antes = null }) => {
+  const mismo = (uno) => uno.tipo === "dePartido" && uno.dispositivo === dispositivo;
+  const ya = cola.find(mismo);
+  const primero = ya ? ya.antes : antes;
+  const sin = cola.filter((uno) => !mismo(uno));
+  return vr === primero ? sin : [...sin, { tipo: "dePartido", dispositivo, vr, antes: primero }];
+};
+
+// Lo mismo, guardado con señal (un número: { id, cual, clave }; el de
+// partido: { dispositivo }): lo que esperaba ya no va (si no, al subir
+// pisaría lo nuevo).
+export const sinVrQueEspera = (cola, { id, cual, clave, dispositivo = null }) =>
+  cola.filter((uno) => !(dispositivo ? uno.tipo === "dePartido" && uno.dispositivo === dispositivo : uno.tipo === "vr" && uno.id === id && uno.cual === cual && uno.clave === clave));
+
 // ------------------------------------------------------ Cómo se ve con ella --
 
 // Las filas de los días (y de lo pegado) que esperan.
@@ -163,6 +201,33 @@ export const conLoQueEspera = (filas = [], cola = []) => {
 
 // Las filas que esperan (para pintarlas): las cambiadas y las de los días.
 export const idsEnEspera = (cola = []) => new Set([...cola.filter((uno) => uno.tipo === "cambiar").map((uno) => uno.id), ...filasQueEsperan(cola).map((fila) => fila.id)]);
+
+// Los V.R. con lo que espera encima, en orden (sin nada esperando, los
+// mismos). Un número null se vacía; una categoría sin números queda vacía.
+const conNumero = (numeros = {}, clave, valor) => {
+  const { [clave]: _fuera, ...resto } = numeros;
+  return valor === null ? resto : { ...resto, [clave]: valor };
+};
+export const conVrQueEspera = (referencias = [], cola = []) => {
+  const cambios = cola.filter((uno) => uno.tipo === "vr" || uno.tipo === "dePartido");
+  if (!cambios.length) return referencias;
+  return cambios.reduce((lista, uno) => {
+    if (uno.tipo === "dePartido") return lista.map((referencia) => (referencia.dispositivo === uno.dispositivo ? { ...referencia, dePartido: referencia.id === uno.vr } : referencia));
+    return lista.map((referencia) => {
+      if (referencia.id !== uno.id) return referencia;
+      if (esDeLaFila(uno.cual)) return { ...referencia, [uno.cual]: conNumero(referencia[uno.cual], uno.clave, uno.valor) };
+      return { ...referencia, categorias: { ...referencia.categorias, [uno.cual]: conNumero(referencia.categorias?.[uno.cual], uno.clave, uno.valor) } };
+    });
+  }, referencias);
+};
+
+// Lo que espera de los V.R. (para pintarlo): cada número
+// («id|cual|clave») y los V.R. cuyo «de partido» cambió (el nuevo y el de
+// antes).
+export const vrEnEspera = (cola = []) => ({
+  numeros: new Set(cola.filter((uno) => uno.tipo === "vr").map((uno) => `${uno.id}|${uno.cual}|${uno.clave}`)),
+  dePartido: new Set(cola.filter((uno) => uno.tipo === "dePartido").flatMap((uno) => [uno.vr, uno.antes]).filter(Boolean)),
+});
 
 // Cuánto espera (un día o lo pegado cuenta sus filas), cuánto choca y
 // cuántos se suben solos.
@@ -275,6 +340,42 @@ const subirPegado = async (pegado, { pegar, crear, listar }, esDeRed) => {
   return { estado: quedan.length ? "chocan" : "listo", ...hecho, quedan, dias };
 };
 
+// Un cambio de los V.R., a la base: con los de la base (base.referencias:
+// se leen al llegar al primero y quedan al día con lo que se sube). Gana el
+// último: lo de este aparato queda aunque otra persona lo haya cambiado
+// mientras tanto, y se avisa (pisado). Si ya está así, no se cambia; si
+// otra persona borró el V.R., no se sube. Devuelve { estado: listo | borrado
+// | red | error, cambiadas, pisado }.
+const subirVr = async (uno, { leerReferencias, cambiarVr, marcar }, base, esDeRed) => {
+  const conRed = (respuesta) => (esDeRed(respuesta) ? { estado: "red" } : { estado: "error", error: respuesta.error });
+  if (!base.referencias) {
+    const leidas = await leerReferencias();
+    if (leidas.error) return conRed(leidas);
+    base.referencias = leidas.referencias;
+  }
+  const alDia = (cambiadas, pisado) => {
+    const porId = new Map(cambiadas.map((referencia) => [referencia.id, referencia]));
+    base.referencias = base.referencias.map((referencia) => porId.get(referencia.id) || referencia);
+    return { estado: "listo", cambiadas, pisado };
+  };
+  if (uno.tipo === "vr") {
+    const enLaBase = base.referencias.find((referencia) => referencia.id === uno.id);
+    if (!enLaBase) return { estado: "borrado" };
+    const ahora = valorDelVr(enLaBase, uno.cual, uno.clave);
+    if (ahora === uno.valor) return { estado: "listo", cambiadas: [], pisado: false };
+    const respuesta = await cambiarVr(uno.id, uno.cual, uno.clave, uno.valor);
+    if (respuesta.error) return conRed(respuesta);
+    return alDia([respuesta.referencia], ahora !== uno.antes);
+  }
+  const delDispositivo = base.referencias.filter((referencia) => referencia.dispositivo === uno.dispositivo);
+  if (uno.vr && !delDispositivo.some((referencia) => referencia.id === uno.vr)) return { estado: "borrado" };
+  const ahora = delDispositivo.find((referencia) => referencia.dePartido)?.id ?? null;
+  if (ahora === uno.vr) return { estado: "listo", cambiadas: [], pisado: false };
+  const respuesta = uno.vr ? await marcar(uno.vr, true) : await marcar(ahora, false);
+  if (respuesta.error) return conRed(respuesta);
+  return alDia(respuesta.referencias, ahora !== uno.antes);
+};
+
 // Sube lo que espera, en orden, con las funciones de la base (las de
 // gpsDb.js; se reciben para probarlas sin la base): los borrados seguidos,
 // juntos (borrarFilasGps). filaDe(id): la fila como está en la pantalla, para
@@ -288,7 +389,11 @@ const subirPegado = async (pegado, { pegar, crear, listar }, esDeRed) => {
 // chocadas ({ carga, existentes, dias }) para preguntar; uno que ya estaba,
 // o una carga sin terminar del mismo CSV, sale y vuelve en descartadas
 // ({ tipo, fecha, otra, n }). subidasEnCurso: las de este aparato que ya
-// están en «Sin terminar» ({ local, id }).
+// están en «Sin terminar» ({ local, id }). De los V.R.: devueltasVr (como
+// quedaron en la base), vrPisados (cuántos números había cambiado otra
+// persona), dePartidoPisados (los dispositivos cuyo V.R. de partido había
+// cambiado otra persona) y vrBorrados (los que no subieron porque otra
+// persona borró el V.R.).
 export const subirLaEspera = async (cola, { funciones, filaDe = () => null, csvDe = () => [], esDeRed }) => {
   const { cambiar, actualizar, borrar } = funciones;
   const quedan = [];
@@ -306,7 +411,12 @@ export const subirLaEspera = async (cola, { funciones, filaDe = () => null, csvD
     sinBorrar: 0,
     subidasEnCurso: [],
     conEnCurso: false,
+    devueltasVr: [],
+    vrPisados: 0,
+    dePartidoPisados: [],
+    vrBorrados: 0,
   };
+  const vrs = { referencias: null };
   for (let i = 0; i < cola.length; ) {
     if (resultado.cortado) {
       quedan.push(...cola.slice(i));
@@ -395,6 +505,21 @@ export const subirLaEspera = async (cola, { funciones, filaDe = () => null, csvD
         resultado.subidos += 1;
         resultado.subidasEnCurso.push({ local: uno.id, id: hecho.id });
       } else resultado.descartadas.push({ tipo: hecho.estado, fecha: uno.fecha, otra: hecho.otra || null });
+      continue;
+    }
+    if (uno.tipo === "vr" || uno.tipo === "dePartido") {
+      const hecho = await subirVr(uno, funciones, vrs, esDeRed); // eslint-disable-line no-await-in-loop
+      if (hecho.estado === "red") {
+        resultado.cortado = true;
+        quedan.push(uno);
+      } else if (hecho.estado === "error") resultado.errores.push({ error: hecho.error, ids: [uno.id || uno.dispositivo] });
+      else if (hecho.estado === "borrado") resultado.vrBorrados += 1;
+      else {
+        resultado.subidos += 1;
+        resultado.devueltasVr.push(...hecho.cambiadas);
+        if (hecho.pisado && uno.tipo === "vr") resultado.vrPisados += 1;
+        if (hecho.pisado && uno.tipo === "dePartido") resultado.dePartidoPisados.push(uno.dispositivo);
+      }
       continue;
     }
     if (uno.tipo !== "cambiar") continue;

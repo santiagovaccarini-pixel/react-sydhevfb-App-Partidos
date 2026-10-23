@@ -408,7 +408,7 @@ describe("los V.R. de cada dispositivo (arriba de la Base)", () => {
     doble.respuestas = [{ data: null, error: { code: "PGRST205", message: "Could not find the table 'public.gps_referencias' in the schema cache" } }];
     expect(await leerReferenciasGps("eq-1")).toEqual({ referencias: [], faltaTabla: true, sinEdicion: true, sinPlanilla: true, error: "" });
     doble.respuestas = [{ data: null, error: { code: "500", message: "otra cosa" } }];
-    expect(await leerReferenciasGps("eq-1")).toEqual({ referencias: [], faltaTabla: false, sinEdicion: false, sinPlanilla: false, error: "gps.error.noLeer" });
+    expect(await leerReferenciasGps("eq-1")).toEqual({ referencias: [], faltaTabla: false, sinEdicion: false, sinPlanilla: false, error: "gps.error.noLeer", detalle: "otra cosa" });
     expect(await leerReferenciasGps(null)).toEqual({ referencias: [], faltaTabla: false, sinEdicion: false, sinPlanilla: false, error: "" });
   });
 
@@ -491,9 +491,14 @@ describe("cambiar los V.R. de GPS (Santiago, 14/10)", () => {
   });
   test("sin la actualización, que falta; sin permiso, que no puede", async () => {
     doble.respuestas = [{ data: null, error: { code: "PGRST202", message: "Could not find the function public.gps_referencia_cambiar(p_clave, p_cual, p_id, p_valor) in the schema cache" } }];
-    expect(await cambiarValorDeReferenciaGps("r1", "promedio", "d", 1)).toEqual({ error: "gps.vr.faltaActualizacion" });
+    expect(await cambiarValorDeReferenciaGps("r1", "promedio", "d", 1)).toEqual({ error: "gps.vr.faltaActualizacion", detalle: expect.stringContaining("gps_referencia_cambiar") });
     doble.respuestas = [{ data: null, error: { code: "42501", message: "referencia_sin_permiso" } }];
-    expect(await cambiarValorDeReferenciaGps("r1", "promedio", "d", 1)).toEqual({ error: "gps.error.sinPermiso" });
+    expect(await cambiarValorDeReferenciaGps("r1", "promedio", "d", 1)).toEqual({ error: "gps.error.sinPermiso", detalle: "referencia_sin_permiso" });
+    // Sin señal, con el detalle (para dejarlo en la fila de espera).
+    doble.respuestas = [{ data: null, error: { message: "TypeError: Failed to fetch" } }];
+    expect(await marcarDePartidoGps("r1", true)).toEqual({ error: "gps.error.sinConexion", detalle: "TypeError: Failed to fetch" });
+    doble.respuestas = [{ data: null, error: { message: "TypeError: Failed to fetch" } }];
+    expect(await leerReferenciasGps("eq-1")).toEqual(expect.objectContaining({ error: "gps.error.noLeer", detalle: "TypeError: Failed to fetch" }));
   });
   test("marcar el de partido devuelve los del dispositivo", async () => {
     doble.respuestas = [{ data: [vr, { ...vr, id: "r2", de_partido: false }], error: null }];
