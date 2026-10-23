@@ -35,6 +35,7 @@ export const RelojPartido = ({
   baseSegundos,
   inicio,
   final,
+  aviso = null,
 }) => {
   const ahora = useAhora();
   const horaReal = horaDesdeInstante(ahora);
@@ -71,7 +72,15 @@ export const RelojPartido = ({
         </span>
       </div>
 
-      <div className="reloj-centro">
+      {/* Un aviso corto debajo del estado (por ejemplo, sin señal en un
+          partido compartido). */}
+      {aviso ? (
+        <p className="aviso-reloj" role="status">
+          {aviso}
+        </p>
+      ) : null}
+
+      <div className={`reloj-centro ${aviso ? "con-aviso" : ""}`}>
         <span className="rotulo-reloj">{periodo} · RELOJ DEL PERÍODO</span>
         <strong className="valor-reloj">{valor}</strong>
       </div>

@@ -1291,7 +1291,7 @@ select pruebas.esperar('Con cuenta, solo las de la lista (ni disparadores ni int
     where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
   'acceso_club,aceptar_pedido,agregar_subdueno,asignar_entidad,cancelar_pedido,clubes_donde_edito,clubes_donde_puedo,crear_club,datos_al_dia,derivar_pedido,'
   || 'es_admin_de_club,es_columna_de_datos_basicos,esta_autorizado,evaluaciones_cambiar,evaluaciones_guardar,evaluaciones_referencia_cambiar,exportar_atleta,gps_cambiar,gps_cambiar_en_descripciones,gps_dejar_en_curso,gps_guardar_dia,gps_pegar_filas,gps_referencia_cambiar,gps_referencia_de_partido,jugadores_cambiar,lesiones_cambiar,lesiones_etiqueta,lesiones_horas_imagen,mi_cuenta,miembro_protegido,minutos_de_entrenamiento,mis_pedidos,panel_clubes,'
-  || 'panel_duenos,panel_historial,partido_en_curso_cambiar,partidos_en_curso_del_club,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_editar_en,puede_usar,'
+  || 'panel_duenos,panel_historial,partido_en_curso_cambiar,partido_en_curso_celulares,partidos_en_curso_del_club,pedidos_del_club,pedidos_sin_club,pedir_acceso,puede_editar,puede_editar_en,puede_usar,'
   || 'puede_usar_catapult_servidor,puede_usar_en,puede_ver,quitar_subdueno,rechazar_pedido,rechazar_pedido_sin_club,'
   || 'renombrar_club,salir_del_club,traspasar_principal');
 select pruebas.esperar('es_admin() ya no existe', (select count(*) from pg_proc where proname = 'es_admin'), 0);
@@ -2723,6 +2723,7 @@ select set_config('request.jwt.claims', '', false);
 -- Se puede volver a correr.
 \ir ../migrations/20261120_partido_en_curso.sql
 \ir ../migrations/20261121_partido_en_curso_en_vivo.sql
+\ir ../migrations/20261122_partido_en_curso_celulares.sql
 
 select pruebas.ser('beto@uno.com'); set role authenticated;
 select (partido_en_curso_cambiar(null, '00000000-0000-0000-0000-0000000000c1', '{"rival":"Rival Vivo","fecha":"2026-10-23","cambios.a1.sale":"VIEJO","inicioPT":""}') ->> 'id') as en_curso \gset
@@ -2790,9 +2791,42 @@ reset role;
 select pruebas.esperar('El partido en curso va en vivo (Realtime)', (select count(*) from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'partidos_en_curso'), 1);
 select pruebas.ser('beto@uno.com'); set role authenticated;
 select pruebas.esperar('Beto borra uno (el de Rival Vivo queda para la prueba de aislamiento)', pruebas.filas(format('delete from partidos_en_curso where id = %L', :'otro_en_curso')), 1);
+-- 20261122 (4c): los celulares sumados a cada partido y desde cuándo no se
+-- conectan, para que «Guardar partido» espere lo de los que faltan.
+select pruebas.esperar('Beto anota su celular en el partido: queda sumado y recién visto', (select string_agg(celular || ',' || email || ',' || sumado || ',' || (segundos < 5), ';') from partido_en_curso_celulares(:'en_curso', 'celu-beto-1')), 'celu-beto-1,beto@uno.com,true,true');
+reset role;
+select pruebas.ser('dario@uno.com'); set role authenticated;
+select pruebas.esperar('Darío se suma con el suyo: ve los dos', (select string_agg(celular, ',' order by celular) from partido_en_curso_celulares(:'en_curso', 'celu-dario-1')), 'celu-beto-1,celu-dario-1');
+reset role;
+-- Uno que no se conecta hace dos minutos (la hora la pone la base: se cambia
+-- sin el disparador).
+set session_replication_role = replica;
+update partidos_en_curso_celulares set visto_en = now() - interval '2 minutes' where celular = 'celu-dario-1';
+set session_replication_role = origin;
+select pruebas.ser('beto@uno.com'); set role authenticated;
+select pruebas.esperar('...Beto ve desde cuándo no se conecta el de Darío (con la hora de la base)', (select (segundos between 110 and 140)::text from partido_en_curso_celulares(:'en_curso', 'celu-beto-1') where celular = 'celu-dario-1'), 'true');
+select pruebas.debe_fallar('No se cambia a mano cuándo se lo vio', $q$update partidos_en_curso_celulares set visto_en = now()$q$, 'permission denied');
+select pruebas.debe_fallar('...ni de quién es', $q$update partidos_en_curso_celulares set email = 'otro@uno.com'$q$, 'permission denied');
+select pruebas.debe_fallar('...ni el club', $q$update partidos_en_curso_celulares set equipo_id = '00000000-0000-0000-0000-0000000000c2'$q$, 'permission denied');
+select pruebas.debe_fallar('...ni se borra (se va con el partido)', $q$delete from partidos_en_curso_celulares$q$, 'permission denied');
+select pruebas.debe_fallar('Un celular con un nombre raro no entra', format('select * from partido_en_curso_celulares(%L, %L)', :'en_curso', 'a b'), 'partido_en_curso_celular');
+select pruebas.debe_fallar('...ni en un partido que ya no está', $q$select * from partido_en_curso_celulares('00000000-0000-0000-0000-0000000e9999', 'celu-beto-1')$q$, 'partido_en_curso_no_esta');
+reset role;
+select pruebas.ser('dario@uno.com'); set role authenticated;
+select pruebas.esperar('Darío limpia (deja el partido): queda no sumado, recién visto', (select sumado || ',' || (segundos < 5) from partido_en_curso_celulares(:'en_curso', 'celu-dario-1', false) where celular = 'celu-dario-1'), 'false,true');
+reset role;
+select pruebas.ser('mira@uno.com'); set role authenticated;
+select pruebas.esperar('Con Partido solo para mirar, ve los celulares', (select count(*) from partidos_en_curso_celulares), 2);
+select pruebas.debe_fallar('...pero no se anota', format('select * from partido_en_curso_celulares(%L, %L)', :'en_curso', 'celu-mira-1'), 'row-level security');
+reset role;
+select pruebas.ser('eva@dos.com'); set role authenticated;
+select pruebas.esperar('Eva (de Dos) no ve los celulares de Uno', (select count(*) from partidos_en_curso_celulares), 0);
+select pruebas.debe_fallar('...ni se anota en un partido de Uno', format('select * from partido_en_curso_celulares(%L, %L)', :'en_curso', 'celu-eva-1'), 'partido_en_curso_no_esta');
 reset role;
 set role anon;
 select pruebas.debe_fallar('Sin cuenta no se ve el partido en curso', 'select count(*) from partidos_en_curso', 'permission denied');
+select pruebas.debe_fallar('...ni sus celulares', 'select count(*) from partidos_en_curso_celulares', 'permission denied');
+select pruebas.debe_fallar('...ni se anota uno', format('select * from partido_en_curso_celulares(%L, %L)', :'en_curso', 'celu-anon-1'), 'permission denied');
 select pruebas.debe_fallar('...ni se cambia', $q$select partido_en_curso_cambiar(null, '00000000-0000-0000-0000-0000000000c1', '{"rival":"X"}')$q$, 'permission denied');
 select pruebas.debe_fallar('...ni se leen los del club', $q$select * from partidos_en_curso_del_club('00000000-0000-0000-0000-0000000000c1')$q$, 'permission denied');
 reset role;

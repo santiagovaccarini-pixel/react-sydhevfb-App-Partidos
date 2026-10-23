@@ -1805,6 +1805,19 @@ export default {
       siSumarme: "Sí, sumarme",
       pisadas: "Otra persona había cambiado {{datos}} mientras tanto: quedó lo tuyo.",
       limpiarSigue: "En los otros celulares que están en este partido, sigue.",
+      // Paso 4c (Santiago, 23/10): sin señal, «Aviso chico en el partido»;
+      // «Guardar partido» espera lo de los celulares que no se conectan, con
+      // «Guardar igual»; si se guardó igual, al volver se avisa.
+      sinSenal: "Sin señal: lo que anotes se junta con los otros celulares cuando vuelva.",
+      faltaTitulo: "Falta juntar lo de otro celular",
+      faltaUno: "El celular de {{quien}} no se conecta desde las {{hora}}: lo que anotó sin señal todavía no se juntó con este partido.",
+      faltanVarios: "{{n}} celulares no se conectan hace más de un minuto: lo que anotaron sin señal todavía no se juntó con este partido.",
+      desdeLas: "{{quien}}, desde las {{hora}}",
+      faltaSinSenal: "Este celular no tiene señal: lo que anotaron los otros celulares mientras tanto todavía no se juntó con este partido.",
+      otroCelular: "otra persona",
+      esperar: "Esperar",
+      guardarIgual: "Guardar igual",
+      yaGuardado: "Este partido ya se guardó en otro celular: lo último que anotaste todavía no está en el Historial. Tocá «Guardar partido» para sumarlo.",
     },
     reanudarTitulo: "¿Reanudar el {{periodo}}?",
     reanudarTexto: "Se borra el final cargado ({{final}}) y el reloj vuelve a correr. Si después tocás Finalizar, queda la hora de ese momento.",

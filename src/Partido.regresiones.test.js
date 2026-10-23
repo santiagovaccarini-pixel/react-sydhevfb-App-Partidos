@@ -463,9 +463,18 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
   // Paso 4b (Santiago, 23/10: «Aviso con «Sumarme»»; se ofrece «Hasta
   // guardarlo terminado»; el mismo dato, «Gana el último y avisa»). La base de
   // mentira: los partidos en curso del club y lo que se sube a cada uno.
+  // 4c: los celulares sumados (los otros, en celulares) y, sin señal, todo
+  // falla como sin red (o solo la subida, con sinSenalAlSubir).
   const baseCompartida = () => {
-    const base = { partidos: [], subidas: [], pisadas: [] };
+    const base = { partidos: [], subidas: [], pisadas: [], celulares: [], anotados: [], sinSenal: false, sinSenalAlSubir: false };
     db.rpc = async (funcion, parametros) => {
+      if (base.sinSenal || (base.sinSenalAlSubir && funcion === "partido_en_curso_cambiar")) {
+        return { data: null, error: { message: "TypeError: Failed to fetch" } };
+      }
+      if (funcion === "partido_en_curso_celulares") {
+        base.anotados.push(parametros);
+        return { data: [{ celular: parametros.p_celular, email: "yo@club.com", sumado: parametros.p_sumado, segundos: 0 }, ...base.celulares], error: null };
+      }
       if (funcion === "partidos_en_curso_del_club") {
         return { data: base.partidos.map((uno) => ({ ...uno, datos: { ...uno.datos } })), error: null };
       }
@@ -589,7 +598,128 @@ describe("Partido: guardado, cola del celular y lo que queda en la base", () => 
     await pasar(900);
     expect(borrador().finalST).toBeTruthy();
     expect(base.partidos[0].datos.guardadoTerminado).toBe(true);
+    // ...con el celular que lo guardó (4c).
+    expect(base.partidos[0].datos.guardadoPor).toMatch(/^cel-/);
     expect(base.partidos[0].registro_id).toBe(db.inserts[0].id);
+  });
+
+  // Paso 4c (Santiago, 23/10): sin señal, «Aviso chico en el partido»; al
+  // volver, avisa «Solo si se pisó algo»; «Guardar partido» espera lo de los
+  // celulares que no se conectan, con «Guardar igual».
+  const sumadoConOtro = async (base) => {
+    vi.setSystemTime(new Date(2026, 8, 8, 22, 30, 0));
+    localStorage.removeItem("registro_actual_partido");
+    base.partidos.push(otroCelular());
+    base.celulares.push({ celular: "cel-otro", email: "otro@club.com", sumado: true, segundos: 5 });
+    await montar();
+    await pasar(100);
+    await act(async () => contenedor.querySelector(".tarjeta-sumarse .boton-sumarse").click());
+    await pasar(100);
+  };
+
+  test("sin señal, el aviso chico en el reloj; al volver, lo de acá sube con lo que se veía antes y el aviso se va", async () => {
+    const base = baseCompartida();
+    await sumadoConOtro(base);
+    expect(base.anotados.at(-1)).toMatchObject({ p_id: "en-curso-otro", p_sumado: true });
+    expect(contenedor.querySelector(".aviso-reloj")).toBeNull();
+
+    // Sin señal: este celular sigue anotando.
+    base.sinSenal = true;
+    await escribirGolesRival("2");
+    await pasar(900);
+    expect(contenedor.querySelector(".aviso-reloj").textContent).toBe("Sin señal: lo que anotes se junta con los otros celulares cuando vuelva.");
+    expect(base.subidas).toEqual([]);
+
+    // Mientras tanto, el otro celular anotó el resultado. Vuelve la señal
+    // para leer pero la subida todavía no llega: lo leído se junta y lo de
+    // acá sigue pendiente, con lo que se veía antes (nada).
+    base.partidos[0].datos.resultado = "0-1";
+    base.partidos[0].version = 5;
+    base.sinSenal = false;
+    base.sinSenalAlSubir = true;
+    await pasar(20000);
+    expect(borrador()).toMatchObject({ enCursoVersion: 5 });
+    expect(borrador().resultado).not.toBe("0-1");
+
+    // Sube: con lo que se veía (null), así la base puede decir que se pisó.
+    base.sinSenalAlSubir = false;
+    base.pisadas.push({ clave: "resultado", habia: "0-1" });
+    await pasar(20000);
+    expect(base.subidas.at(-1)).toMatchObject({ p_id: "en-curso-otro", p_cambios: { resultado: borrador().resultado }, p_antes: { resultado: null } });
+    expect(contenedor.textContent).toContain("Otra persona había cambiado Resultado mientras tanto: quedó lo tuyo.");
+    expect(contenedor.querySelector(".aviso-reloj")).toBeNull();
+  });
+
+  test("solo, sin otros celulares en el partido, no aparece el aviso", async () => {
+    vi.setSystemTime(new Date(2026, 8, 8, 22, 50, 0));
+    enElSegundoTiempo();
+    const base = baseCompartida();
+    await montar();
+    await pasar(900);
+    base.sinSenal = true;
+    await escribirGolesRival("2");
+    await pasar(900);
+    expect(contenedor.querySelector(".aviso-reloj")).toBeNull();
+  });
+
+  test("«Guardar partido» espera a un celular que no se conecta hace más de un minuto: «Esperar» no guarda, «Guardar igual» sí", async () => {
+    vi.setSystemTime(new Date(2026, 8, 8, 22, 50, 0));
+    enElSegundoTiempo();
+    const base = baseCompartida();
+    await montar();
+    await pasar(900);
+    expect(borrador().idEnCurso).toBe("nuevo-1");
+    base.celulares.push({ celular: "cel-otro", email: "otro@club.com", sumado: true, segundos: 125 });
+    await guardar();
+    expect(contenedor.querySelector(".hoja-confirmar h3").textContent).toBe("Falta juntar lo de otro celular");
+    expect(contenedor.querySelector(".hoja-confirmar").textContent).toMatch(/El celular de otro@club\.com no se conecta desde las \d\d:\d\d: lo que anotó sin señal todavía no se juntó con este partido\./);
+    expect(contenedor.querySelector(".hoja-confirmar .boton-cancelar-hoja").textContent).toBe("Esperar");
+    await act(async () => contenedor.querySelector(".hoja-confirmar .boton-cancelar-hoja").click());
+    await vaciarPromesas();
+    expect(db.inserts).toHaveLength(0);
+
+    await guardar();
+    expect(contenedor.querySelector(".hoja-confirmar .boton-confirmar-hoja").textContent).toBe("Guardar igual");
+    await act(async () => contenedor.querySelector(".hoja-confirmar .boton-confirmar-hoja").click());
+    await vaciarPromesas();
+    expect(db.inserts).toHaveLength(1);
+
+    // Uno que se fue («Limpiar» en ese celular) o que se conecta, no se espera.
+    base.celulares[0] = { celular: "cel-otro", email: "otro@club.com", sumado: false, segundos: 125 };
+    await guardar();
+    expect(contenedor.querySelector(".hoja-confirmar")).toBeNull();
+  });
+
+  test("sin señal en este celular, con otros en el partido, «Guardar partido» también espera", async () => {
+    const base = baseCompartida();
+    await sumadoConOtro(base);
+    base.sinSenal = true;
+    await guardar();
+    expect(contenedor.querySelector(".hoja-confirmar h3").textContent).toBe("Falta juntar lo de otro celular");
+    expect(contenedor.querySelector(".hoja-confirmar").textContent).toContain("Este celular no tiene señal: lo que anotaron los otros celulares mientras tanto todavía no se juntó con este partido.");
+  });
+
+  test("lo anotado después de que otro celular lo guardó terminado: avisa que falta «Guardar partido»", async () => {
+    const base = baseCompartida();
+    await sumadoConOtro(base);
+    // El otro celular terminó y lo guardó mientras este no tenía señal.
+    Object.assign(base.partidos[0].datos, { inicioST: "22:03:00", finalST: "22:50:00", guardadoTerminado: true, guardadoPor: "cel-otro" });
+    base.partidos[0].version = 6;
+    base.sinSenal = true;
+    await escribirGolesRival("2");
+    await pasar(900);
+    base.sinSenal = false;
+    await pasar(20000);
+    expect(contenedor.textContent).toContain("Este partido ya se guardó en otro celular: lo último que anotaste todavía no está en el Historial. Tocá «Guardar partido» para sumarlo.");
+  });
+
+  test("«Limpiar» deja el partido: los otros celulares ya no lo esperan", async () => {
+    const base = baseCompartida();
+    await sumadoConOtro(base);
+    await act(async () => boton("Limpiar").click());
+    await act(async () => contenedor.querySelector(".hoja-confirmar .boton-confirmar-hoja").click());
+    await vaciarPromesas();
+    expect(base.anotados.at(-1)).toMatchObject({ p_id: "en-curso-otro", p_sumado: false });
   });
 
   test("dos toques de más sobre un período terminado no pisan su final: Reanudar pregunta antes", async () => {
