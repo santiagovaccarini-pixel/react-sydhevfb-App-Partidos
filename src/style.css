@@ -4364,6 +4364,28 @@ button:disabled {
   color: var(--cam-negro);
 }
 
+/* Un partido en curso que se carga en otro celular, con «Sumarme» (paso 4
+   de «cargar sin señal y a la vez que otra persona»): la misma tarjeta que
+   el partido en curso de este celular. */
+.tarjeta-sumarse {
+  margin-bottom: 12px;
+}
+
+.tarjeta-sumarse .titulo-sumarse {
+  color: var(--cam-negro);
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.tarjeta-sumarse .detalle-sumarse {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.tarjeta-sumarse .boton-sumarse {
+  width: 100%;
+}
+
 .ir-al-partido {
   display: flex;
   align-items: center;

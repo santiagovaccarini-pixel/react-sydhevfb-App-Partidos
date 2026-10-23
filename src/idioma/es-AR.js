@@ -1791,6 +1791,21 @@ export default {
   // Textos nuevos del módulo Partido (App.js). El resto de esa pantalla
   // todavía está escrito en castellano directamente en el código.
   partido: {
+    enCurso: {
+      // Paso 4 de «cargar sin señal…»: el partido compartido entre celulares (Santiago, 23/10).
+      hay: "Hay un partido en curso: vs {{rival}}",
+      sinRival: "sin rival",
+      enVivo: "EN VIVO",
+      sinEmpezar: "SIN EMPEZAR",
+      quien: "Lo cambió {{quien}} a las {{hora}}.",
+      sumarme: "Sumarme",
+      sumado: "Te sumaste: lo que anotes se junta con lo de los otros celulares.",
+      dejarTitulo: "¿Dejar el partido de este celular?",
+      dejarTexto: "Este celular tiene cargado otro partido. Si te sumás, deja de verse acá (lo que ya se guardó sigue en el Historial).",
+      siSumarme: "Sí, sumarme",
+      pisadas: "Otra persona había cambiado {{datos}} mientras tanto: quedó lo tuyo.",
+      limpiarSigue: "En los otros celulares que están en este partido, sigue.",
+    },
     reanudarTitulo: "¿Reanudar el {{periodo}}?",
     reanudarTexto: "Se borra el final cargado ({{final}}) y el reloj vuelve a correr. Si después tocás Finalizar, queda la hora de ese momento.",
     reanudarSi: "Sí, reanudar",

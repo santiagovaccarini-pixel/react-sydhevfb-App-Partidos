@@ -76,8 +76,20 @@ import {
   escribirBorrador,
   leerBorradorDelClub,
 } from "./domain/borrador";
-import { aplanarPartido, diferenciasDelPartido } from "./domain/partidoEnCurso.js";
-import { cambiarPartidoEnCurso } from "./domain/partidoEnCursoDb.js";
+import {
+  aplanarPartido,
+  armarPartido,
+  diferenciasDelPartido,
+  juntarConLaBase,
+  nombreDelDato,
+  paraSumarse,
+  partidoTerminado,
+} from "./domain/partidoEnCurso.js";
+import {
+  cambiarPartidoEnCurso,
+  partidosEnCursoDelClub,
+} from "./domain/partidoEnCursoDb.js";
+import { useEnVivo } from "./domain/enVivo.js";
 import { puntosDeRegistros } from "./domain/puntos";
 import {
   cortesDelPartido,
@@ -257,7 +269,7 @@ const ESTILO_PENALES = {
   [PENALES.SOLO]: "activo solo",
 };
 
-const APP_VERSION = "2026.10.23.8";
+const APP_VERSION = "2026.10.23.9";
 // Cuánto espera Guardar a que termine de subirse la cola del celular antes de
 // dejar el partido a salvo en el teléfono (ver archivarRegistro).
 const ESPERA_SUBIDA_MS = 8000;
@@ -2056,8 +2068,16 @@ export default function App({
     // La cola es de un club (el de esta subida): si mientras tanto se cambió
     // de club, el borrador en pantalla es de otro y no se toca.
     if (equipoId !== clubDelBorrador.current) return;
+    // Guardado terminado, el partido en curso deja de ofrecerse para sumarse.
+    const terminado = partidoTerminado(aplanarPartido(pendiente));
     setRegistro((prev) =>
-      borradorRecibeId(prev, pendiente) ? { ...prev, idSupabase: idFila } : prev,
+      borradorRecibeId(prev, pendiente)
+        ? {
+            ...prev,
+            idSupabase: idFila,
+            ...(terminado ? { guardadoTerminado: true } : {}),
+          }
+        : prev,
     );
   };
 
@@ -2506,22 +2526,67 @@ export default function App({
   }, [registro]);
 
   // El partido en curso también queda en la base, dato por dato
-  // (partidos_en_curso; paso 4a de «cargar sin señal y a la vez que otra
-  // persona», Santiago, 23/10: «Varios cargan a la vez»), para que otros
-  // celulares del club se sumen. A la vista, igual que hoy: el Historial (y
-  // el Excel) lo ven recién con «Guardar partido». Un rato después de cada
-  // cambio se sube solo lo que cambió; sin señal (o si falla), queda para el
-  // próximo cambio o para cuando vuelva la señal. Sin la actualización de la
-  // base, como antes. Lo subido: lo que la base ya tiene de este partido
-  // (de este idLocal: «Limpiar» empieza otro y deja el de antes).
+  // (partidos_en_curso; paso 4 de «cargar sin señal y a la vez que otra
+  // persona», Santiago, 23/10: «Varios cargan a la vez»), y otros celulares
+  // del club se suman y lo ven en vivo. El Historial (y el Excel) lo ven
+  // recién con «Guardar partido». Un rato después de cada cambio se sube
+  // solo lo que cambió; sin señal (o si falla), queda para el próximo cambio
+  // o para cuando vuelva la señal. Lo que anotan los otros celulares llega
+  // (en vivo y, por las dudas, cada 20 segundos) y se junta con lo de acá
+  // que todavía no subió; si dos cambiaron el mismo dato, gana el último y se
+  // le avisa («Gana el último y avisa»). En el partido queda lo último que se
+  // supo de la base (enCursoSubido) y su versión: así se sabe qué cambió acá,
+  // aunque se cierre la app. Sin la actualización de la base, como antes.
+  // «Limpiar» empieza otro partido en este celular y deja el de antes.
   const enCurso = useRef({
-    idLocal: null,
-    subido: null,
-    registroId: null,
+    registroEnviado: null,
     enCamino: false,
     otraVez: false,
     sinFuncion: false,
+    sinLista: false,
   });
+  const [paraSumarseA, setParaSumarseA] = useState([]);
+  const mismosDatos = (uno, otro) =>
+    !Object.keys(diferenciasDelPartido(uno || {}, otro || {}).cambios).length;
+  // Lo de la base de este partido (su id, datos, versión y fila del
+  // Historial) con lo de este celular que todavía no subió encima. Una
+  // lectura vieja (de una versión anterior) no pisa una nueva. Sin nada
+  // nuevo, el mismo partido: la pantalla no se redibuja.
+  const conLaBase = (prev, { id, datos, version = null, registroId = null }) => {
+    if (prev.idEnCurso && prev.idEnCurso !== id) return prev;
+    if (
+      Number.isInteger(version) &&
+      Number.isInteger(prev.enCursoVersion) &&
+      version < prev.enCursoVersion
+    ) {
+      return prev;
+    }
+    const ahora = aplanarPartido(prev);
+    const plano = juntarConLaBase(datos, {
+      subido: prev.enCursoSubido || {},
+      ahora,
+    });
+    const nuevo = normalizarBorrador({
+      ...armarPartido(plano, {
+        vacio: crearRegistroVacio(),
+        local: prev,
+        nuevoId: idAlAzar,
+      }),
+      idEnCurso: id,
+      enCursoSubido: datos,
+      enCursoVersion: Number.isInteger(version)
+        ? version
+        : prev.enCursoVersion ?? null,
+      idSupabase: prev.idSupabase || registroId || null,
+    });
+    const igual =
+      prev.idEnCurso === id &&
+      prev.enCursoVersion === nuevo.enCursoVersion &&
+      prev.idSupabase === nuevo.idSupabase &&
+      mismosDatos(prev.enCursoSubido, datos) &&
+      mismosDatos(ahora, aplanarPartido(nuevo));
+    return igual ? prev : nuevo;
+  };
   const subirEnCurso = async () => {
     const estado = enCurso.current;
     if (estado.sinFuncion) return;
@@ -2534,18 +2599,17 @@ export default function App({
     if (!club || club !== equipoId || soloLectura || !hayPartidoCargado(actual)) {
       return;
     }
-    const mismo =
-      Boolean(actual.idEnCurso) && estado.idLocal === actual.idLocal;
-    const plano = aplanarPartido(actual);
+    const conBase = Boolean(actual.idEnCurso && actual.enCursoSubido);
     const { cambios, antes } = diferenciasDelPartido(
-      mismo ? estado.subido : {},
-      plano,
+      conBase ? actual.enCursoSubido : {},
+      aplanarPartido(actual),
     );
     const registroId = actual.idSupabase || null;
+    const fila = `${actual.idEnCurso}|${registroId}`;
     if (
-      mismo &&
+      conBase &&
       !Object.keys(cambios).length &&
-      (!registroId || registroId === estado.registroId)
+      (!registroId || estado.registroEnviado === fila)
     ) {
       return;
     }
@@ -2553,7 +2617,7 @@ export default function App({
     const respuesta = await cambiarPartidoEnCurso(club, {
       id: actual.idEnCurso || null,
       cambios,
-      antes: mismo ? antes : {},
+      antes: conBase ? antes : {},
       registroId,
     });
     estado.enCamino = false;
@@ -2563,20 +2627,29 @@ export default function App({
     }
     if (respuesta.noEsta) {
       // Lo borraron: este celular lo vuelve a empezar con lo que tiene.
-      estado.idLocal = null;
-      estado.subido = null;
       setRegistro((prev) =>
-        prev.idLocal === actual.idLocal ? { ...prev, idEnCurso: null } : prev,
+        prev.idLocal === actual.idLocal
+          ? { ...prev, idEnCurso: null, enCursoSubido: null, enCursoVersion: null }
+          : prev,
       );
     } else if (!respuesta.error) {
-      estado.idLocal = actual.idLocal;
-      estado.subido = plano;
-      estado.registroId = registroId;
-      if (actual.idEnCurso !== respuesta.id) {
-        setRegistro((prev) =>
-          prev.idLocal === actual.idLocal
-            ? { ...prev, idEnCurso: respuesta.id }
-            : prev,
+      estado.registroEnviado = `${respuesta.id}|${registroId}`;
+      setRegistro((prev) =>
+        prev.idLocal === actual.idLocal
+          ? conLaBase(
+              { ...prev, idEnCurso: prev.idEnCurso || respuesta.id },
+              { ...respuesta, registroId },
+            )
+          : prev,
+      );
+      if (respuesta.pisadas.length) {
+        avisarGuardado(
+          t("partido.enCurso.pisadas", {
+            datos: [
+              ...new Set(respuesta.pisadas.map((pisada) => nombreDelDato(pisada.clave))),
+            ].join(", "),
+          }),
+          6000,
         );
       }
     }
@@ -2584,6 +2657,71 @@ export default function App({
       estado.otraVez = false;
       subirEnCurso();
     }
+  };
+  // Los partidos en curso del club: a cuáles se ofrece «Sumarme» y lo que
+  // anotaron los otros celulares en el de acá.
+  const traerDeLaBase = async () => {
+    const estado = enCurso.current;
+    if (estado.sinFuncion || estado.sinLista) return;
+    const club = clubDelBorrador.current;
+    if (!club || club !== equipoId || soloLectura) return;
+    const respuesta = await partidosEnCursoDelClub(club);
+    if (respuesta.sinFuncion) {
+      estado.sinLista = true;
+      return;
+    }
+    if (respuesta.error || club !== clubDelBorrador.current) return;
+    const actual = registroVigente.current;
+    setParaSumarseA(
+      paraSumarse(respuesta.partidos, { propio: actual.idEnCurso || null }),
+    );
+    const propio = actual.idEnCurso
+      ? respuesta.partidos.find((uno) => uno.id === actual.idEnCurso)
+      : null;
+    if (propio) {
+      setRegistro((prev) =>
+        prev.idEnCurso === propio.id ? conLaBase(prev, propio) : prev,
+      );
+    }
+  };
+  // «Sumarme»: este celular pasa a ese partido (con lo de la base). Si tenía
+  // otro cargado, pregunta antes.
+  const sumarseAlPartido = (oferta) => {
+    const sumarse = () => {
+      const nuevo = normalizarBorrador({
+        ...armarPartido(oferta.datos, {
+          vacio: crearRegistroVacio(),
+          nuevoId: idAlAzar,
+        }),
+        idEnCurso: oferta.id,
+        enCursoSubido: oferta.datos,
+        enCursoVersion: oferta.version ?? null,
+        idSupabase: oferta.registroId || null,
+      });
+      const hayPartido = hayPartidoCargado(nuevo);
+      enCurso.current.registroEnviado = `${oferta.id}|${oferta.registroId || null}`;
+      fechaElegidaAMano.current = false;
+      setRegistro(nuevo);
+      setFormacionTemporal(conCancha(nuevo.formacion));
+      setFechaFormacion(nuevo.fecha || fechaLocalISO());
+      setPartidoEnCurso(hayPartido);
+      setPeriodoVista(periodoActivo(nuevo));
+      setPenalesAbiertos(false);
+      setPantallaFormacion(hayPartido ? "lista" : "inicio");
+      setParaSumarseA((lista) => lista.filter((uno) => uno.id !== oferta.id));
+      avisarGuardado(t("partido.enCurso.sumado"), 4000);
+    };
+    if (hayPartidoCargado(registro) && registro.idEnCurso !== oferta.id) {
+      setConfirmacion({
+        titulo: t("partido.enCurso.dejarTitulo"),
+        descripcion: t("partido.enCurso.dejarTexto"),
+        detalle: resumenPartidoEnCurso(),
+        etiquetaConfirmar: t("partido.enCurso.siSumarme"),
+        onConfirmar: sumarse,
+      });
+      return;
+    }
+    sumarse();
   };
   const subirEnCursoVigente = useRef(subirEnCurso);
   subirEnCursoVigente.current = subirEnCurso;
@@ -2600,6 +2738,24 @@ export default function App({
     window.addEventListener("online", alVolver);
     return () => window.removeEventListener("online", alVolver);
   }, []);
+  const traerDeLaBaseVigente = useRef(traerDeLaBase);
+  traerDeLaBaseVigente.current = traerDeLaBase;
+  useEnVivo({
+    nombre: "partido-en-curso",
+    tablas: ["partidos_en_curso"],
+    equipoId,
+    activo: Boolean(equipoId) && !soloLectura,
+    alCambiar: () => traerDeLaBaseVigente.current(),
+  });
+  useEffect(() => {
+    if (!equipoId || soloLectura) return undefined;
+    traerDeLaBaseVigente.current();
+    const intervalo = window.setInterval(
+      () => traerDeLaBaseVigente.current(),
+      20000,
+    );
+    return () => window.clearInterval(intervalo);
+  }, [equipoId, soloLectura, registro.idEnCurso]);
 
   // Al cambiar de club, el partido en memoria ya quedó guardado en el suyo
   // (se escribe con cada cambio) y se trae el del club nuevo, o uno vacío.
@@ -4353,10 +4509,17 @@ export default function App({
       if (idGuardado) {
         // Si mientras guardaba se limpió el borrador para otro partido, ese
         // no se queda con la fila de este.
+        // Guardado terminado, el partido en curso deja de ofrecerse para
+        // sumarse (Santiago, 23/10: «Hasta guardarlo terminado»).
+        const terminado = partidoTerminado(aplanarPartido(nuevoRegistro));
         setRegistro((prev) =>
           prev.idLocal && nuevoRegistro.idLocal && prev.idLocal !== nuevoRegistro.idLocal
             ? prev
-            : { ...prev, idSupabase: idGuardado },
+            : {
+                ...prev,
+                idSupabase: idGuardado,
+                ...(terminado ? { guardadoTerminado: true } : {}),
+              },
         );
         if (clubDelGuardado && clubDelBorrador.current !== clubDelGuardado) {
           anotarFilaEnBorradorDelClub(clubDelGuardado, nuevoRegistro.idLocal, idGuardado);
@@ -4531,8 +4694,9 @@ export default function App({
   const limpiarCarga = () => {
     setConfirmacion({
       titulo: "¿Borrar el partido en curso?",
-      descripcion:
-        "Se pierden la formación, los horarios y los cambios que cargaste. Los partidos ya guardados no se tocan.",
+      descripcion: `Se pierden la formación, los horarios y los cambios que cargaste. Los partidos ya guardados no se tocan.${
+        registro.idEnCurso ? ` ${t("partido.enCurso.limpiarSigue")}` : ""
+      }`,
       detalle: resumenPartidoEnCurso(),
       onConfirmar: confirmarLimpiarCarga,
     });
@@ -5333,6 +5497,62 @@ export default function App({
         </header>
 
         <AvisoSoloLectura hasta={equipoGuardado?.hasta} mirar={mirar} modulo="partido" />
+
+        {/* Un partido en curso del club que se carga en otro celular: con
+            «Sumarme», este también lo carga (Santiago, 23/10: «Aviso con
+            «Sumarme»»). */}
+        {!soloLectura &&
+          paraSumarseA.map((oferta) => {
+            const enMarcha =
+              Boolean(oferta.datos.inicioPT) && !partidoTerminado(oferta.datos);
+            const rival = String(oferta.datos.rival || "").trim();
+            const cuando = oferta.actualizadoEn
+              ? new Date(oferta.actualizadoEn).toTimeString().slice(0, 5)
+              : "";
+            return (
+              <section
+                className="tarjeta-en-curso tarjeta-sumarse"
+                key={oferta.id}
+                aria-label={t("partido.enCurso.hay", {
+                  rival: rival || t("partido.enCurso.sinRival"),
+                })}
+              >
+                <span className="cabecera-en-curso">
+                  <span
+                    className={`pastilla-vivo ${enMarcha ? "" : "sin-empezar"}`}
+                  >
+                    <i aria-hidden="true" />
+                    {t(enMarcha ? "partido.enCurso.enVivo" : "partido.enCurso.sinEmpezar")}
+                  </span>
+                  {oferta.datos.fecha && (
+                    <span className="fecha-registro">
+                      {formatearFechaPantalla(oferta.datos.fecha)}
+                    </span>
+                  )}
+                </span>
+                <strong className="titulo-sumarse">
+                  {t("partido.enCurso.hay", {
+                    rival: rival || t("partido.enCurso.sinRival"),
+                  })}
+                </strong>
+                {oferta.actualizadoEmail && cuando && (
+                  <span className="detalle-sumarse">
+                    {t("partido.enCurso.quien", {
+                      quien: oferta.actualizadoEmail,
+                      hora: cuando,
+                    })}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="boton-principal boton-sumarse"
+                  onClick={() => sumarseAlPartido(oferta)}
+                >
+                  {t("partido.enCurso.sumarme")}
+                </button>
+              </section>
+            );
+          })}
 
         {soloLectura && (
           <section className="tarjeta tarjeta-inicio">
