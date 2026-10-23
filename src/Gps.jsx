@@ -44,7 +44,9 @@ import {
   unirFilasGps,
 } from "./domain/gpsDb.js";
 import { guardarCopiaGps, leerCopiaGps } from "./domain/copiaGps.js";
-import { AvisoSinSenal, falloDeRed, sinSenalAhora, useSinSenal } from "./components/SinSenal.jsx";
+import { AvisoDeEspera, AvisoSinSenal, falloDeRed, sinSenalAhora, useSinSenal } from "./components/SinSenal.jsx";
+import { conBorradas, conCambio as conCambioEnEspera, conLoHechoMientras, conLoQueEspera, idsEnEspera, subirLaEspera } from "./domain/gps/espera.js";
+import { guardarEspera, leerEspera } from "./domain/filaDeEspera.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido, soloParaMirar } from "./domain/equipo.js";
 import { cargarPlantelLesiones } from "./domain/lesionesDb.js";
 import { actualesPrimero, esActual } from "./domain/plantel.js";
@@ -218,6 +220,13 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   // del club ya se leyó de la base (recién ahí se guarda su copia).
   const [deLaCopia, setDeLaCopia] = useState(null);
   const [clubListo, setClubListo] = useState(false);
+  // Lo cambiado o borrado en la Base sin señal que espera para subir (paso
+  // 3c.1; gps/espera.js) y si ya se está subiendo. Las filas de la pantalla
+  // (filasGps) siguen siendo las de la base: lo que espera va encima.
+  const [espera, setEspera] = useState([]);
+  const esperaActual = useRef([]);
+  const [subiendo, setSubiendo] = useState(false);
+  const subiendoAhora = useRef(false);
 
   // Ajustes: qué se mira y la hoja abierta.
   const [vistaAjustes, setVistaAjustes] = useState("inicio");
@@ -233,6 +242,11 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const seFue = Boolean(equipo?.hasta);
   const mirar = soloParaMirar(equipo, "gps");
   const soloLectura = seFue || mirar || Boolean(deLaCopia);
+  // Sin señal, en la Base se cambia y se borra igual (paso 3c.1 de «cargar
+  // sin señal…»; Santiago, 23/10). Cargar, Pegar y los V.R., con su parte del
+  // paso 3c; los Ajustes, solo con señal.
+  const baseSoloLectura = seFue || mirar;
+  const sinConexion = Boolean(deLaCopia) || !enLinea;
   // Para ver GPS sin señal (Santiago, 21/10: la copia «Automática en todos,
   // sin botón»): las filas van en su copia de siempre (copiaGps.js); lo del
   // club (Datos básicos, Ajustes, reglas y V.R.), en esta. Quien ya se fue no
@@ -240,6 +254,24 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const sinSenal = useSinSenal("gps", equipoId, { deshabilitado: seFue });
   const leerCopia = useRef(sinSenal.leer);
   leerCopia.current = sinSenal.leer;
+
+  // La fila de espera queda en este aparato con cada cambio.
+  const ponerEspera = (nueva) => {
+    esperaActual.current = nueva;
+    setEspera(nueva);
+    guardarEspera("gps", sinSenal.cuenta, equipoId, nueva);
+  };
+  useEffect(() => {
+    let vigente = true;
+    leerEspera("gps", sinSenal.cuenta, equipoId).then((guardada) => {
+      if (!vigente || !guardada.length) return;
+      esperaActual.current = guardada;
+      setEspera(guardada);
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [sinSenal.cuenta, equipoId]);
 
   // Sin club elegido en este celular, se adopta el que diga la base.
   useEffect(() => {
@@ -352,6 +384,9 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const marca = useRef(null);
   const actuales = useRef(filasGps);
   actuales.current = filasGps;
+  // Las que se ven: las de la base con lo que espera encima.
+  const filasVistas = useMemo(() => conLoQueEspera(filasGps, espera), [filasGps, espera]);
+  const idsQueEsperan = useMemo(() => idsEnEspera(espera), [espera]);
   // Las puestas al día van de a una (abrir, lo de otros, después de cargar).
   const cola = useRef(Promise.resolve());
   // Cómo se arma una fila para la tabla (más abajo) y las ya armadas.
@@ -529,9 +564,10 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     };
   }, []);
 
-  // Vuelve la señal mientras se ve la copia: lo de la base, al día.
+  // Vuelve la señal mientras se ve la copia: lo de la base, al día (si algo
+  // espera, se sube primero; ver «al subirla»).
   useEffect(() => {
-    if (enLinea && deLaCopia) cargar();
+    if (enLinea && deLaCopia && !esperaActual.current.length) cargar();
   }, [enLinea]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -588,7 +624,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         titulo: tituloDeColumna(gps, columna, config, idioma),
         tipo: TIPO_EN_LA_TABLA[columna.tipo] || "texto",
         // Un "por minuto" no se escribe: sale de su medida y del Tiempo.
-        editable: !soloLectura && columna.tipo !== "porMinuto",
+        editable: !baseSoloLectura && columna.tipo !== "porMinuto",
         ancho: columna.ancho,
         alinear: A_LA_IZQUIERDA.includes(columna.clave) ? undefined : "centro",
         opciones:
@@ -609,7 +645,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
                 }))
               : undefined,
       })),
-    [gps, visibles, config, idioma, soloLectura, opcionesDeQuien],
+    [gps, visibles, config, idioma, baseSoloLectura, opcionesDeQuien],
   );
   const fijas = useMemo(() => visibles.filter((columna) => columna.fija).map((columna) => columna.clave), [visibles]);
 
@@ -665,27 +701,30 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   // Solo con la Base a la vista (la pantalla abre en Cargar); mientras tanto
   // se van armando de a tandas, y al abrir la Base ya están.
   const enLaBase = vista === "base";
+  // Lo cambiado sin señal, en otro color hasta que sube (Santiago, 21/10: las
+  // filas «de otro color»).
   const filas = useMemo(
     () =>
       enLaBase
-        ? filasGps.map((fila) => {
-            const ya = armadas.get(fila);
-            if (ya) return ya;
-            const armada = armarFila(fila);
-            armadas.set(fila, armada);
-            return armada;
+        ? filasVistas.map((fila) => {
+            let armada = armadas.get(fila);
+            if (!armada) {
+              armada = armarFila(fila);
+              armadas.set(fila, armada);
+            }
+            return idsQueEsperan.has(fila.id) ? { ...armada, espera: true } : armada;
           })
         : SIN_FILAS,
-    [enLaBase, filasGps, armadas, armarFila],
+    [enLaBase, filasVistas, armadas, armarFila, idsQueEsperan],
   );
   useEffect(() => {
     if (enLaBase) return undefined;
     let sigue = true;
-    armarDeATandas(armado, filasGps, () => sigue);
+    armarDeATandas(armado, filasVistas, () => sigue);
     return () => {
       sigue = false;
     };
-  }, [enLaBase, filasGps, armadas]);
+  }, [enLaBase, filasVistas, armadas]);
 
   // Para la planilla de V.R. (Valores de referencia › «Agregar V.R.»): las
   // filas armadas como en la Base (las mismas guardadas), sus columnas sin
@@ -883,10 +922,18 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     if (["jugador_id", "persona", "promedio"].includes(clave)) return tituloDeClave("jugador");
     return tituloDeClave(clave.startsWith("datos.") ? clave.slice(6) : clave);
   };
+  // Sin señal (o si la señal se corta al guardar), el cambio queda en la fila
+  // de espera (enEspera) y se ve al toque, encima de la fila de la base.
   const guardarCambios = async (id, vieja, nueva) => {
     const { cambios, antes } = cambiosDeLaFilaGps(vieja, nueva);
     if (!Object.keys(cambios).length) return { fila: ultimas.current.find((una) => una.id === id) || vieja, error: "" };
+    const aLaEspera = () => {
+      ponerEspera(conCambioEnEspera(esperaActual.current, { id, cambios, antes }));
+      return { enEspera: true, error: "" };
+    };
+    if (sinConexion) return aLaEspera();
     const respuesta = await cambiarFilaGps(id, { cambios, antes });
+    if (falloDeRed(respuesta)) return aLaEspera();
     if (respuesta.sinFuncion) return actualizarFilaGps(id, nueva);
     if (respuesta.borrada) {
       ultimas.current = ultimas.current.filter((una) => una.id !== id);
@@ -908,7 +955,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
       if (falta) return { error: falta };
       if (!nueva) return {};
       const respuesta = await guardarCambios(id, fila, nueva);
-      if (respuesta.borrada) return {};
+      if (respuesta.borrada || respuesta.enEspera) return {};
       if (respuesta.error) return { error: respuesta.error };
       ultimas.current = ultimas.current.map((una) => (una.id === id ? respuesta.fila : una));
       reemplazar(respuesta.fila);
@@ -980,24 +1027,93 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     const elegidas = aBorrar || [];
     setABorrar(null);
     if (!elegidas.length) return;
+    // Sin señal (o si se corta en el camino), a la fila de espera.
+    const aLaEspera = (ids) => {
+      ponerEspera(conBorradas(esperaActual.current, ids));
+      setAviso(plural("sinSenal.quedaronEnElAparato", ids.length));
+    };
+    if (sinConexion) {
+      aLaEspera(elegidas.map((fila) => fila.id));
+      return;
+    }
     setOcupado(true);
     setBorrando(elegidas.length);
     const respuesta = await borrarFilasGps(elegidas.map((fila) => fila.id));
     const borradas = new Set(respuesta.borradas);
-    const falla = respuesta.error || (borradas.size < elegidas.length ? "gps.error.noBorrar" : "");
     setOcupado(false);
     setBorrando(0);
+    if (falloDeRed(respuesta)) {
+      if (borradas.size) setFilasGps((previas) => previas.filter((una) => !borradas.has(una.id)));
+      aLaEspera(elegidas.map((fila) => fila.id).filter((id) => !borradas.has(id)));
+      return;
+    }
+    const falla = respuesta.error || (borradas.size < elegidas.length ? "gps.error.noBorrar" : "");
     if (borradas.size) setFilasGps((previas) => previas.filter((una) => !borradas.has(una.id)));
     if (falla) setAviso(elegidas.length === 1 ? t(falla) : `${t(falla)} ${t("tabla.borradasDe", { n: borradas.size, total: elegidas.length })}`);
     else setAviso(elegidas.length === 1 ? t("gps.borrada") : t("gps.borradas", { n: borradas.size }));
   };
 
+  // ---------------------------------------- La fila de espera, al subirla --
+
+  // Al volver la señal se sube sola y avisa (Santiago, 21/10: «Lo sube sola y
+  // avisa»), y la Base se pone al día con lo de la base.
+  const subir = async () => {
+    const enviada = esperaActual.current;
+    if (subiendoAhora.current || !enviada.length || !equipoId || seFue) return false;
+    subiendoAhora.current = true;
+    setSubiendo(true);
+    const resultado = await subirLaEspera(enviada, {
+      funciones: { cambiar: cambiarFilaGps, actualizar: actualizarFilaGps, borrar: borrarFilasGps },
+      filaDe: (id) => actuales.current.find((una) => una.id === id) || null,
+      esDeRed: falloDeRed,
+    });
+    // Lo que devolvió la base, al toque (sin esperar a ponerse al día).
+    const borradas = new Set(resultado.borradas);
+    const devueltas = new Map(resultado.devueltas.map((fila) => [fila.id, fila]));
+    if (borradas.size || devueltas.size) {
+      const nuevas = actuales.current.filter((fila) => !borradas.has(fila.id)).map((fila) => devueltas.get(fila.id) || fila);
+      actuales.current = nuevas;
+      setFilasGps(nuevas);
+    }
+    ponerEspera(conLoHechoMientras(esperaActual.current, { enviada, ...resultado }));
+    const columnasPisadas = resultado.pisadas.map((pisada) => nombreDeLaClave(pisada.clave));
+    const noSubieron = resultado.errores.reduce((total, uno) => total + uno.ids.length, 0);
+    const partes = [
+      resultado.subidos ? plural("sinSenal.subidos", resultado.subidos) : "",
+      columnasPisadas.length ? t("gps.cambios.pisadas", { columnas: enLista([...new Set(columnasPisadas)]) }) : "",
+      resultado.borradasPorOtra ? plural("gps.espera.borradas", resultado.borradasPorOtra) : "",
+      noSubieron ? plural("sinSenal.noSubieron", noSubieron, { error: t(resultado.errores[0].error) }) : "",
+    ].filter(Boolean);
+    if (partes.length) setAviso(partes.join(" "));
+    // Desde la copia del aparato, todo al día; si no, lo cambiado.
+    if (deLaCopia) await cargar();
+    else await ponerAlDia();
+    subiendoAhora.current = false;
+    setSubiendo(false);
+    return true;
+  };
+  const subirAlVolver = useRef(subir);
+  subirAlVolver.current = subir;
+  // Con señal y algo esperando, se sube: al volver la señal, al abrir y, si
+  // la señal anda a medias, cada medio minuto.
+  useEffect(() => {
+    if (!enLinea || !espera.length || seFue || cargando) return undefined;
+    const ya = setTimeout(() => subirAlVolver.current(), deLaCopia ? 0 : 1500);
+    const otraVez = setInterval(() => subirAlVolver.current(), 30000);
+    return () => {
+      clearTimeout(ya);
+      clearInterval(otraVez);
+    };
+  }, [enLinea, espera.length, seFue, cargando, Boolean(deLaCopia)]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ------------------------------------------------------------ Pantallas --
 
   const estado = deLaCopia ? (
-    <AvisoSinSenal guardadaEn={deLaCopia.guardadaEn} />
-  ) : !enLinea ? (
+    <AvisoDeEspera sinSenal guardadaEn={deLaCopia.guardadaEn} cuantos={espera.length} />
+  ) : !enLinea && (error || cargando) ? (
     <p className="lesiones-estado">{t("gps.estado.sinConexion")}</p>
+  ) : !enLinea ? (
+    <AvisoDeEspera sinSenal cuantos={espera.length} />
   ) : error ? (
     <div className="lesiones-estado error">
       {t(error)}{" "}
@@ -1011,7 +1127,13 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     </p>
   ) : cargando ? (
     <p className="lesiones-estado">{t("gps.estado.cargando")}</p>
+  ) : espera.length ? (
+    <AvisoDeEspera cuantos={espera.length} subiendo={subiendo} alSubir={() => subir()} />
   ) : null;
+
+  // Los V.R., hasta su parte del paso 3c, sin señal son para mirar (el
+  // aviso de siempre).
+  const estadoParaMirar = deLaCopia ? <AvisoSinSenal guardadaEn={deLaCopia.guardadaEn} /> : !enLinea ? <p className="lesiones-estado">{t("gps.estado.sinConexion")}</p> : estado;
 
   const numero = (n) => Number(n).toLocaleString(idioma);
 
@@ -1037,7 +1159,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
             <span className="etiqueta-hero">{t("gps.titulo").toUpperCase()}</span>
             <strong className="nombre-sesion">{equipo?.nombre || t("gps.titulo")}</strong>
             <p className="fecha-hero">{primeraMayuscula(fechaLarga(hoy))}</p>
-            <span className="estado-hero">{cargando ? t("gps.estado.leyendo") : plural("gps.filas", filasGps.length, { n: numero(filasGps.length) })}</span>
+            <span className="estado-hero">{cargando ? t("gps.estado.leyendo") : plural("gps.filas", filasVistas.length, { n: numero(filasVistas.length) })}</span>
           </div>
         </header>
 
@@ -1095,12 +1217,13 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
             onPegar={pegarEnTabla}
             leyenda={t("datos.leyendaYaNoEsta")}
             rotuloApagada={t("datos.yaNoEsta")}
+            leyendaEspera={t("sinSenal.leyendaEspera")}
             onBorrarFilas={
-              soloLectura
+              baseSoloLectura
                 ? undefined
                 : (ids) => {
                     const pedidas = new Set(ids);
-                    const elegidas = filasGps.filter((una) => pedidas.has(una.id));
+                    const elegidas = filasVistas.filter((una) => pedidas.has(una.id));
                     if (elegidas.length) setABorrar(elegidas);
                   }
             }
@@ -1114,7 +1237,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
 
   // Lo de hoy, si la Base tiene traído el día de hoy.
   const conHoy = !cargando && !error;
-  const deHoy = conHoy ? filasGps.filter((fila) => fila.fecha === hoy).length : null;
+  const deHoy = conHoy ? filasVistas.filter((fila) => fila.fecha === hoy).length : null;
 
   // Guardado el día: a la Base.
   const alCargarDia = ({ cargadas, reemplazadas = 0, fecha, quedoEnCurso = false }) => {
@@ -1393,7 +1516,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   };
 
   const filaAjuste = ({ id, icono, titulo: rotulo, detalle, alTocar, extra = null, clase = "" }) => (
-    <button key={id} type="button" className={`opcion-ajuste ${clase}`.trim()} onClick={alTocar} disabled={soloLectura}>
+    <button key={id} type="button" className={`opcion-ajuste ${clase}`.trim()} onClick={alTocar} disabled={soloLectura || sinConexion}>
       {icono && (
         <span className="icono-ajuste">
           <Icono nombre={icono} size={18} />
@@ -1544,7 +1667,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
                   setErrorHoja("");
                   setHojaColumna({ nombre: "", tipo: TIPOS_PROPIOS[0] });
                 }}
-                disabled={soloLectura}
+                disabled={soloLectura || sinConexion}
               >
                 {t("gps.ajustes.agregarColumna")}
               </button>
@@ -1590,7 +1713,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
             </div>
             <div className="acciones-dobles">
               <BotonVolver onClick={() => setVistaAjustes("listas")}>{t("lesiones.ajustes.volverListas")}</BotonVolver>
-              <button type="button" className="boton-principal" onClick={() => abrirOpcion(null)} disabled={soloLectura}>
+              <button type="button" className="boton-principal" onClick={() => abrirOpcion(null)} disabled={soloLectura || sinConexion}>
                 {t("lesiones.ajustes.nuevaOpcion")}
               </button>
             </div>
@@ -1627,6 +1750,8 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         <div className="contenedor">
           {encabezado(t("lesiones.ajustes.titulo"), t("gps.ajustes.texto"))}
           <AvisoSoloLectura hasta={equipo?.hasta} mirar={mirar} modulo="gps" />
+          {/* Los Ajustes, solo con señal (Santiago, 20/10: «Sí, con señal»). */}
+          {sinConexion && !seFue && !mirar && <p className="lesiones-estado">{t("sinSenal.ajustesConSenal")}</p>}
           <div className="lista-opciones">
             {filaAjuste({
               id: "cabeceras",
@@ -1748,7 +1873,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   else if (vista === "informe")
     contenido = (
       <ReportesGps
-        filasGps={filasGps}
+        filasGps={filasVistas}
         referencias={referencias}
         elegidos={elegidos}
         nombreDe={nombreDe}
@@ -1784,14 +1909,14 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         arriba={
           <>
             <AvisoSoloLectura hasta={equipo?.hasta} mirar={mirar} modulo="gps" />
-            {estado}
+            {estadoParaMirar}
           </>
         }
         onCambiadas={conReferenciasCambiadas}
         onRecargar={cargarReferencias}
         onAviso={setAviso}
         sinPlanilla={sinPlanillaVr}
-        filasGps={filasGps}
+        filasGps={filasVistas}
         todasLasFilas={!cargando && !trayendo && !errorHistorial}
         armarFilaDeLaBase={armarFilaDeLaBase}
         columnasDeLaBase={columnasDeLaBase}

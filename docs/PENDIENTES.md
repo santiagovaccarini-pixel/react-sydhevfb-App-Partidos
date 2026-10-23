@@ -4627,6 +4627,28 @@ confirme.**
     - **Queda prohibido** que lo hecho sin señal se pierda sin avisar, que la misma lesión quede
       dos veces, que al subir cambien N° de caso que ya están en la Base, o cambiar los Ajustes
       sin señal, salvo un pedido nuevo.
+  - **Paso 3c, GPS, por partes** (Santiago, en cuestionarios del 23/10: «Sí, seguí con GPS
+    (Recomendado)»; sin señal se puede «Cambiar y borrar en la Base», «Cargar un día», «Pegar
+    desde una planilla» y «Valores de referencia»; «Dejar para revisar» sin señal, «Queda en el
+    aparato (Recomendado)»: se sigue en ese aparato y al volver la señal se sube y aparece en los
+    otros). Lo que se le dijo al elegir «Cargar un día» y «Pegar desde una planilla»: sin señal no
+    se lee el partido del día (el «Vs» va a mano); al subir, si choca (Regla 1) espera y pregunta,
+    y si otra persona cargó lo mismo, se descarta y avisa. Claude propuso hacerlo por partes, cada
+    una con su PR y su confirmación: 3c.1 cambiar y borrar en la Base; 3c.2 Cargar un día (con
+    «Dejar para revisar»); 3c.3 Pegar desde una planilla; 3c.4 los V.R.
+  - **Hecho, paso 3c.1 (23/10, 2026.10.23.1; UI-074): GPS › Base sin señal.** Cambiar celdas
+    (escribir o pegar) y borrar filas funciona sin señal (o si la señal se corta al guardar).
+    Lo hecho queda en la fila de espera del aparato (`domain/gps/espera.js`), con el aviso dorado
+    y las filas en dorado claro; el «por minuto» de lo cambiado se recalcula en el aparato. Al
+    volver la señal sube sola, en orden (los borrados seguidos, juntos), y avisa; la Base queda con
+    lo que devolvió la base y después se pone al día. Las filas de la pantalla siguen siendo las de
+    la base (y su copia del aparato): lo que espera va encima, así la copia y la puesta al día no
+    cambian. Los Ajustes, solo con señal. Sin SQL nuevo.
+    - **Lo que espera es trabajo de quien lo cargó**, como en los pasos 3a y 3b.
+    - **Queda para las partes que siguen:** Cargar un día, Pegar desde una planilla y los V.R.
+      siguen sin señal como antes (para mirar).
+    - **Queda prohibido** que lo hecho sin señal se pierda sin avisar o cambiar los Ajustes sin
+      señal, salvo un pedido nuevo.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida; arreglada el 20/10); después, las grandes, cada una aparte (la planilla de valor
