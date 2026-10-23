@@ -596,7 +596,7 @@ describe("el partido del día en Partido (GPS › Cargar)", () => {
   test("sin partido ese día, null; si no se pudo mirar, un error; sin fecha o de solo lectura, ni pregunta", async () => {
     expect(await partidoDelDia("eq-1", "2026-10-12")).toBeNull();
     doble.respuestas = [{ data: null, error: { message: "permission denied" } }];
-    expect(await partidoDelDia("eq-1", "2026-10-12")).toEqual({ error: "gps.cargar.partidoNoSeLeyo" });
+    expect(await partidoDelDia("eq-1", "2026-10-12")).toEqual({ error: "gps.cargar.partidoNoSeLeyo", detalle: "permission denied" });
     doble.llamadas.length = 0;
     expect(await partidoDelDia("eq-1", "12/10/2026")).toBeNull();
     doble.soloLectura = true;

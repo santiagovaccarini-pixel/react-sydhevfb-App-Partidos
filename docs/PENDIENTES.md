@@ -4666,6 +4666,27 @@ confirme.**
       sigue en «Sin terminar» y se puede borrar.
     - **Queda prohibido** volver a una sola carga sin terminar por día o dejar seguir con un CSV
       que ya está en otra, salvo un pedido nuevo.
+  - **Hecho, paso 3c.2b (23/10, 2026.10.23.3; UI-076): GPS › Cargar un día sin señal.**
+    Santiago: «Sí, seguí (Recomendado)» a «Sin señal: el «Vs» va a mano, «Dejar para revisar»
+    queda en el aparato, y al volver la señal se sube con estas reglas». Sin señal (o si se corta
+    al guardar o al dejar), «Cargar un día» funciona con los mismos pasos: el «ya está», el
+    «mismo CSV» y la Regla 1 se revisan con lo que tiene este aparato; Partido no se mira (el «Vs»
+    va a mano); «Guardar» deja el día en la fila de espera (`domain/gps/espera.js`, en la Base en
+    dorado claro, se cambia y se borra ahí); «Dejar para revisar» lo deja en este aparato (en
+    «Sin terminar», con su pastilla, y se sigue sin señal). Al volver la señal se sube solo: el
+    día con `gps_guardar_dia` (la base vuelve a mirar el CSV y la Regla 1) y lo dejado a «Sin
+    terminar». Si otra persona ya cargó el mismo CSV, se descarta y avisa; si es la misma sesión
+    con otros datos, espera y pregunta («Reemplazar y cargar» o «Ir a la Base»). Lo dejado sin
+    señal cuyo CSV ya está en la Base o en otra carga sin terminar, o que siguieron desde otro
+    aparato, se descarta y avisa. Sin SQL nuevo.
+    - **Límites conocidos:** sin señal no se guardan personas que no están en Datos básicos
+      (su consentimiento se confirma con señal): se deja para revisar. Lo dejado sin señal es de
+      este aparato y de esta cuenta hasta que sube (no se ve en otros aparatos). Mientras se
+      sube, lo cargado sin señal no se cambia ni se borra («probá en un momento»). Si la señal se
+      corta justo después de que la base guardó el día, al subir se ve como «ya lo había cargado
+      otra persona» y se descarta (el día ya está en la Base).
+    - **Queda para las partes que siguen:** Pegar desde una planilla (3c.3) y los V.R. (3c.4)
+      siguen sin señal como antes (para mirar).
     - **Queda prohibido** que lo hecho sin señal se pierda sin avisar o cambiar los Ajustes sin
       señal, salvo un pedido nuevo.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de

@@ -621,7 +621,7 @@ export const partidoDelDia = async (equipoId, fecha) => {
   if (!equipoId || !/^\d{4}-\d{2}-\d{2}$/.test(String(fecha || "")) || esSoloLectura(equipoId)) return null;
   // Todas las columnas: así no falla si al club le falta alguna nueva.
   const { data, error } = await supabase.from("registros_partido").select("*").eq("equipo_id", equipoId).eq("fecha", fecha).order("id", { ascending: true }).limit(1);
-  if (error) return { error: "gps.cargar.partidoNoSeLeyo" };
+  if (error) return { error: "gps.cargar.partidoNoSeLeyo", detalle: error.message || "" };
   if (!Array.isArray(data) || !data.length) return null;
   const fila = data[0] || {};
   const rival = String(fila.rival || "").trim();
@@ -687,7 +687,7 @@ export const enCursosDelDia = async (equipoId, fecha) => {
   const { data, error } = await supabase.from("gps_en_curso").select(COLUMNAS_EN_CURSO).eq("equipo_id", equipoId).eq("fecha", fecha).order("actualizado_en", { ascending: false });
   if (error) {
     const clave = claveDeErrorEnCurso(error, "gps.enCurso.noSeLeyo");
-    return { enCurso: [], error: clave === "gps.enCurso.faltaMigracion" ? "" : clave };
+    return { enCurso: [], error: clave === "gps.enCurso.faltaMigracion" ? "" : clave, detalle: error.message || "" };
   }
   return { enCurso: (Array.isArray(data) ? data : []).map(normalizarEnCurso), error: "" };
 };
@@ -700,7 +700,7 @@ export const leerEnCurso = async (id) => {
     supabase.from("gps_en_curso_datos").select("datos").eq("en_curso_id", id).limit(1),
   ]);
   const error = lista.error || hecho.error;
-  if (error) return { enCurso: null, error: claveDeErrorEnCurso(error, "gps.enCurso.noSeAbrio") };
+  if (error) return { enCurso: null, error: claveDeErrorEnCurso(error, "gps.enCurso.noSeAbrio"), detalle: error.message || "" };
   const fila = Array.isArray(lista.data) ? lista.data[0] : null;
   const datos = Array.isArray(hecho.data) ? hecho.data[0]?.datos : null;
   if (!fila) return { enCurso: null, error: "gps.enCurso.noEsta" };
@@ -720,7 +720,7 @@ export const dejarEnCurso = async (equipoId, { id = null, version = null, fecha,
     p_resumen: objeto(resumen),
     p_datos: objeto(datos),
   });
-  if (error) return { id: null, version: null, error: claveDeErrorEnCurso(error, "gps.enCurso.noSeDejo") };
+  if (error) return { id: null, version: null, error: claveDeErrorEnCurso(error, "gps.enCurso.noSeDejo"), detalle: error.message || "" };
   const respuesta = objeto(data);
   return { id: respuesta.id ?? null, version: Number(respuesta.version) || null, error: "" };
 };
