@@ -191,6 +191,7 @@ vi.mock("./domain/gpsDb.js", async (importOriginal) => ({
     return { filas: cambio ? ahora : filas, hasta: "2026-10-13T13:00:00Z", cambio, error: "" };
   },
   listarGps: async (equipoId, { desde = null, hasta = null, jugador = "", dispositivo = "", maximo = null } = {}) => {
+    if (!hayRed()) return { filas: [], total: 0, demasiadas: false, ...sinRed, error: "gps.error.noLeer" };
     datos.lecturas.push({ equipoId, desde, hasta, jugador, dispositivo, maximo });
     if (datos.errorAlLeer) return { filas: [], total: 0, demasiadas: false, error: datos.errorAlLeer };
     // Como la base: lo pedido, por fecha y en el orden de carga.
@@ -207,9 +208,12 @@ vi.mock("./domain/gpsDb.js", async (importOriginal) => ({
   // sesión con otros datos no se guarda; con reemplazar, cambia esas filas y
   // el promedio del equipo de ese día y ese dispositivo).
   guardarDiaGps: async (equipoId, { fecha, dispositivo, filas, reemplazar = false }) => {
+    if (!hayRed()) return sinRed;
     datos.diasGuardados.push({ fecha, dispositivo, filas: filas.length, reemplazar });
     if (datos.sinGuardarDia) return { sinFuncion: true, error: "" };
-    const { filasDeLaMismaSesion } = await import("./domain/gps/cargar.js");
+    const { filasDeLaMismaSesion, filasYaEnLaBase } = await import("./domain/gps/cargar.js");
+    // El CSV ya está (gps_ya_esta).
+    if (filasYaEnLaBase(filas.map((fila) => ({ valores: fila.datos })), datos.filas.filter((fila) => fila.fecha === fecha))) return { yaEsta: true, error: "gps.cargar.yaEstaAlGuardar" };
     const otras = filasDeLaMismaSesion(filas, datos.filas.filter((fila) => fila.fecha === fecha), dispositivo);
     if (otras.length && !reemplazar) return { conOtras: true, error: "" };
     const antes = datos.filas.length;
@@ -327,7 +331,7 @@ vi.mock("./domain/gpsDb.js", async (importOriginal) => ({
     datos.referencias = datos.referencias.filter((una) => una.id !== id);
     return { error: "" };
   },
-  partidoDelDia: async (equipoId, fecha) => datos.partidos.find((partido) => partido.fecha === fecha) || null,
+  partidoDelDia: async (equipoId, fecha) => (hayRed() ? datos.partidos.find((partido) => partido.fecha === fecha) || null : { error: "gps.cargar.partidoNoSeLeyo", detalle: sinRed.detalle }),
   // El último dispositivo que eligió la cuenta al pegar y al cargar un CSV.
   leerDispositivosRecordados: async () => ({ ...datos.recordados }),
   recordarDispositivo: async (equipoId, lugar, dispositivo) => {
@@ -336,13 +340,16 @@ vi.mock("./domain/gpsDb.js", async (importOriginal) => ({
     return { error: "" };
   },
   listarEnCurso: async () => ({ enCurso: datos.enCurso.map(({ datos: hecho, ...fila }) => ({ ...fila })), faltaTabla: false, error: "" }),
-  enCursosDelDia: async (equipoId, fecha) => ({ enCurso: datos.enCurso.filter((una) => una.fecha === fecha).map(({ datos: hecho, ...resto }) => ({ ...resto })), error: "" }),
+  enCursosDelDia: async (equipoId, fecha) =>
+    hayRed() ? { enCurso: datos.enCurso.filter((una) => una.fecha === fecha).map(({ datos: hecho, ...resto }) => ({ ...resto })), error: "" } : { enCurso: [], error: "gps.enCurso.noSeLeyo", detalle: sinRed.detalle },
   leerEnCurso: async (id) => {
+    if (!hayRed()) return { enCurso: null, error: "gps.enCurso.noSeAbrio", detalle: sinRed.detalle };
     const fila = datos.enCurso.find((una) => una.id === id);
     return fila ? { enCurso: JSON.parse(JSON.stringify(fila)), error: "" } : { enCurso: null, error: "gps.enCurso.noEsta" };
   },
   // Como la base: varias por día (20261118); con id, solo si la versión es la que se abrió.
   dejarEnCurso: async (equipoId, { id, version, fecha, paso, resumen, datos: hecho }) => {
+    if (!hayRed()) return { id: null, version: null, error: "gps.enCurso.noSeDejo", detalle: sinRed.detalle };
     datos.dejadas.push({ id, version, fecha, paso, resumen, datos: JSON.parse(JSON.stringify(hecho)) });
     const quien = { actualizado_email: "yo@club.com", actualizado_en: "2026-10-13T13:49:00Z" };
     if (!id) {
@@ -1696,6 +1703,203 @@ describe("GPS", () => {
     expect(datos.enCurso.map((una) => una.id)).toEqual(["ec8"]);
     expect(cuadroEnCurso().querySelector("h2").textContent).toBe("1 carga sin terminar");
     expect(document.body.textContent).toContain(`Se borró la carga sin terminar del ${fechaCorta(AYER)}.`);
+  });
+
+  // Paso 3c.2b de «cargar sin señal…» (Santiago, 23/10, en cuestionarios:
+  // sin señal también «Cargar un día»; el «Vs» va a mano; lo dejado para
+  // revisar «Queda en el aparato»; al subir, las reglas del «Mismo CSV» y la
+  // Regla 1 «Espera y te pregunta»).
+  describe("Cargar un día sin señal", () => {
+    // Solo jugadores de Datos básicos (sin personas: su consentimiento se confirma con señal).
+    const CSV_DE_ELLOS = (fecha) =>
+      CSV(fecha, [
+        "A. Alfa,Session,0,9000,01:10:00,10:00:00,11:10:00,30",
+        "A. Alfa,1. Rondo,1,3000,00:20:00,10:00:00,10:20:00,25",
+        "BETA,1. Rondo,1,2800,00:20:00,10:00:00,10:20:00,24",
+        "A. Alfa,2. Juego,2,6000,00:40:00,10:30:00,11:10:00,30",
+        "BETA,2. Juego,2,5800,00:40:00,10:30:00,11:10:00,29",
+      ]);
+    const REVISADO_ACA = "Sin señal se revisó con lo de este aparato: no está, podés seguir.";
+    // Con señal una vez (queda la copia de lo del club), y sin señal, en Cargar.
+    const sinSenalEnCargar = async () => {
+      datos.copia = { filas: FILAS(), hasta: "2026-10-13T10:00:00Z", guardadaEn: "2026-10-20T14:32:00.000Z" };
+      await montar();
+      await act(async () => new Promise((listo) => setTimeout(listo, 1600)));
+      await act(async () => raiz.unmount());
+      await sinSenalAhora(true);
+      await montar();
+    };
+    const hastaLaTarea = async (csv = CSV_DE_ELLOS(AYER)) => {
+      await tocar(boton("Cargar un día"));
+      await pegarCsv(csv);
+      await esperar(() => contenedor.textContent.includes(REVISADO_ACA));
+      if (botones().some((b) => b.textContent.startsWith("Guardar igual"))) await guardarIgual();
+      await tocar(siguiente());
+      expect(titulo()).toBe("1. Rondo");
+      await elegirTipo();
+      await escribirEn("Largo", "40");
+    };
+    const hastaRevisar = async (csv, { noEntrenaron = false } = {}) => {
+      await hastaLaTarea(csv);
+      await tocar(siguiente());
+      await elegirTipo();
+      await tocar(siguiente());
+      if (noEntrenaron) await elegirTipo("Descanso");
+      await tocar(siguiente());
+      await elegirDelDesplegable("Tipo Microciclo", "Competitivo");
+      await elegirDelDesplegable("Día del microciclo", "-1");
+      await elegirTipo("Din. General");
+      await tocar(siguiente());
+      expect(titulo()).toBe("Revisar y guardar");
+    };
+    const botonGuardar = () => botones().find((b) => /^Guardar \d+ filas$/.test(b.textContent.trim()));
+    const enEspera = () => esperas.guardadas["eq-1|gps|cuenta-1"] || [];
+    const hoja = () => document.querySelector(".hoja-confirmar");
+
+    test("se revisa con lo de este aparato, se guarda en él (en otro color en la Base) y al volver la señal sube de una vez y avisa", async () => {
+      await sinSenalEnCargar();
+      expect(avisoArriba()).toContain("Lo que cargues, cambies o borres queda en este aparato");
+      expect(boton("Cargar un día").disabled).toBe(false);
+      await hastaRevisar(CSV_DE_ELLOS(AYER));
+      const n = Number(botonGuardar().textContent.match(/\d+/)[0]);
+      expect(contenedor.querySelector(".aviso-sin-senal").textContent).toContain("Sin señal");
+      await tocar(botonGuardar());
+      expect(datos.diasGuardados).toEqual([]);
+      expect(document.body.textContent).toContain(`Sin señal: ${n} filas del ${fechaCorta(AYER)} quedaron en este aparato y se suben solas cuando vuelva la señal.`);
+      expect(enEspera().map((uno) => uno.tipo)).toEqual(["dia"]);
+      // En la Base, con las de la copia y en otro color.
+      expect(filas(contenedor)).toHaveLength(3 + n);
+      expect(queEsperan()).toHaveLength(n);
+      expect(avisoArriba()).toContain(`Sin señal: ${n} cambios esperan para subir`);
+      // Una de ellas se cambia sin señal (queda en su día); la fecha, no.
+      const f = filas(contenedor).indexOf(queEsperan()[1]);
+      await editarCelda(contenedor, f, "D", "3333");
+      expect(celda(contenedor, f, "D").textContent).toBe("3333,0");
+      expect(enEspera()[0].filas.some((una) => una.datos.d === 3333)).toBe(true);
+      // El mismo CSV otra vez: ya está (en lo de este aparato).
+      await irA(contenedor, "Cargar");
+      await tocar(boton("Cargar un día"));
+      await pegarCsv(CSV_DE_ELLOS(AYER));
+      await esperar(() => contenedor.textContent.includes("Este CSV ya está en la Base"));
+      await tocar(boton("Cancelar"));
+
+      // Vuelve la señal: sube sola, de una vez, y avisa.
+      await sinSenalAhora(false);
+      await unRato();
+      expect(datos.diasGuardados).toEqual([{ fecha: AYER, dispositivo: "catapult", filas: n, reemplazar: false }]);
+      expect(datos.creadas.some((una) => una.datos.d === 3333)).toBe(true);
+      expect(document.body.textContent).toContain(`Se subieron ${n} cambios hechos sin señal.`);
+      expect(esperas.guardadas).toEqual({});
+      expect(contenedor.querySelector(".aviso-sin-senal")).toBeNull();
+    }, 30000);
+
+    test("día de partido: sin señal no se mira Partido y el «Vs» va a mano", async () => {
+      datos.partidos = [{ fecha: AYER, rival: "Rival Inventado", noIngresaron: [] }];
+      await sinSenalEnCargar();
+      await tocar(boton("Cargar un día"));
+      await pegarCsv(CSV_PARTIDO(AYER));
+      await esperar(() => contenedor.textContent.includes(REVISADO_ACA));
+      expect(contenedor.textContent).toContain(`Sin señal no se mira Partido: si el ${fechaCorta(AYER)} hubo partido, escribí su nombre (Vs …) a mano.`);
+      expect(contenedor.textContent).not.toContain("Buscando en Partido");
+      // Al volver la señal, se mira.
+      await sinSenalAhora(false);
+      await esperar(() => contenedor.textContent.includes("Rival Inventado"));
+    }, 30000);
+
+    test("con personas que no están en Datos básicos no se guarda sin señal: se deja para revisar", async () => {
+      datos.plantel = CON_DELTA_Y_EPSILON();
+      await sinSenalEnCargar();
+      await hastaRevisar(CSV_TAREAS(AYER), { noEntrenaron: true });
+      await tocar(botonGuardar());
+      expect(contenedor.textContent).toContain("Sin señal no se guardan personas que no están en Datos básicos");
+      expect(enEspera()).toEqual([]);
+    }, 30000);
+
+    test("«Dejar para revisar» queda en este aparato, con su marca; se sigue sin señal y al volver la señal sube a «Sin terminar»", async () => {
+      await sinSenalEnCargar();
+      await hastaLaTarea();
+      await tocar(boton("Dejar para revisar"));
+      expect(datos.dejadas).toEqual([]);
+      expect(document.body.textContent).toContain("Sin señal: quedó en «Sin terminar», en este aparato. Se sube sola cuando vuelva la señal.");
+      expect(cuadroEnCurso().querySelector("h2").textContent).toBe("1 carga sin terminar");
+      expect(cuadroEnCurso().querySelector(".lesiones-espera").textContent).toBe("Espera para subir");
+      expect(cuadroEnCurso().textContent).toContain("Quedó en este aparato el ");
+      expect(cuadroEnCurso().textContent).toContain("Sin señal seguís las que quedaron en este aparato");
+      // Se sigue sin señal, donde quedó, y se deja otra vez: la misma.
+      await tocar(boton("Seguir"));
+      expect(titulo()).toBe("1. Rondo");
+      expect(contenedor.querySelector('input[aria-label="Largo"]').value).toBe("40");
+      await tocar(siguiente());
+      expect(titulo()).toBe("2. Juego");
+      await tocar(boton("Dejar para revisar"));
+      expect(enEspera().map((uno) => [uno.tipo, uno.paso])).toEqual([["enCurso", 2]]);
+      // Otra con el mismo CSV: lo frena (está en este aparato).
+      await tocar(boton("Cargar un día"));
+      await pegarCsv(CSV_DE_ELLOS(AYER));
+      await esperar(() => contenedor.textContent.includes(`Ese CSV ya está en una carga sin terminar del ${fechaCorta(AYER)} que quedó en este aparato.`));
+      await tocar(boton("Cancelar"));
+
+      // Vuelve la señal: sube como una nueva y avisa.
+      await sinSenalAhora(false);
+      await unRato();
+      expect(datos.dejadas).toEqual([expect.objectContaining({ id: null, fecha: AYER, paso: 2 })]);
+      expect(esperas.guardadas).toEqual({});
+      await esperar(() => Boolean(cuadroEnCurso()?.textContent.includes("La dejó yo@club.com")));
+      expect(cuadroEnCurso().querySelector(".lesiones-espera")).toBeNull();
+      expect(document.body.textContent).toContain("Se subió 1 cambio hecho sin señal.");
+    }, 30000);
+
+    test("al subir, si otra persona ya la dejó con el mismo CSV en «Sin terminar», avisa y descarta la de este aparato", async () => {
+      await sinSenalEnCargar();
+      await hastaLaTarea();
+      await tocar(boton("Dejar para revisar"));
+      datos.enCurso = [UNA_EN_CURSO({ datos: { formato: 1, estado: { csv: [{ nombre: "dia.csv", texto: CSV_DE_ELLOS(AYER) }] } } })];
+      await sinSenalAhora(false);
+      await unRato();
+      expect(datos.dejadas).toEqual([]);
+      expect(esperas.guardadas).toEqual({});
+      expect(document.body.textContent).toContain(`La carga sin terminar del ${fechaCorta(AYER)} que dejaste sin señal ya está en otra (la dejó otra@club.com el `);
+    }, 30000);
+
+    test("al subir: si otra persona ya cargó ese CSV se descarta y avisa; si es la misma sesión con otros datos, espera y pregunta", async () => {
+      await sinSenalEnCargar();
+      await hastaRevisar(CSV_DE_ELLOS(AYER));
+      await tocar(botonGuardar());
+      // Mientras tanto, otra persona cargó el mismo CSV.
+      datos.filas.push(fila("x1", 20, { jugador_id: 2 }, AYER, { d: 2800, tiempo: 1200, inicio: 36000, dispositivo: "catapult" }));
+      await sinSenalAhora(false);
+      await unRato();
+      expect(datos.creadas).toEqual([]);
+      expect(esperas.guardadas).toEqual({});
+      expect(document.body.textContent).toContain(`Lo que cargaste sin señal del ${fechaCorta(AYER)} ya lo había cargado otra persona (el mismo CSV): se descartó lo tuyo.`);
+
+      // Otra vez, y otra persona cargó la misma sesión con otros datos.
+      await act(async () => raiz.unmount());
+      datos.filas = FILAS();
+      await sinSenalEnCargar();
+      await hastaRevisar(CSV_DE_ELLOS(AYER));
+      const n = Number(botonGuardar().textContent.match(/\d+/)[0]);
+      await tocar(botonGuardar());
+      datos.filas.push(fila("s1", 21, { jugador_id: 1 }, AYER, { d: 3100, tiempo: 1200, inicio: 36000, dispositivo: "catapult" }));
+      await sinSenalAhora(false);
+      await unRato();
+      expect(hoja().querySelector("h3").textContent).toBe("Esa sesión ya está en la Base, con otros datos");
+      expect(hoja().textContent).toContain(`2 jugadores de lo que cargaste sin señal ya tienen filas del ${fechaCorta(AYER)} con Catapult a la misma hora de inicio, con otros datos (las cargó otra persona):`);
+      expect([...hoja().querySelectorAll(".consentimiento-personas li")].map((li) => li.textContent)).toEqual(["ALFA · 2 filas", "BETA · 1 fila"]);
+      // «Ir a la Base»: espera, en otro color, con las de esa sesión.
+      await tocar(boton("Ir a la Base"));
+      expect(contenedor.querySelector(".gps-revisar-carga").textContent).toContain(`Estas son las filas del ${fechaCorta(AYER)} que ya estaban y, en otro color, las que cargaste sin señal: esperan.`);
+      expect(queEsperan().length).toBeGreaterThan(0);
+      expect(avisoArriba()).toContain("chocan con lo que cargó otra persona");
+      // «Subir lo que espera»: pregunta otra vez; «Reemplazar y cargar».
+      await tocar(boton("Subir lo que espera"));
+      await unRato();
+      await tocar(boton("Reemplazar y cargar"));
+      await unRato();
+      expect(datos.diasGuardados.at(-1)).toEqual({ fecha: AYER, dispositivo: "catapult", filas: n, reemplazar: true });
+      expect(datos.filas.some((una) => una.id === "s1")).toBe(false);
+      expect(esperas.guardadas).toEqual({});
+    }, 40000);
   });
 
   test("si el CSV ya está en la Base, avisa y no deja seguir", async () => {

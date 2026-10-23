@@ -10,7 +10,7 @@ import { SentidoParaVr } from "./components/SentidoParaVr.jsx";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
 import ImportarGps from "./ImportarGps.jsx";
-import CargarGps from "./CargarGps.jsx";
+import CargarGps, { filasDelCsvEnCurso } from "./CargarGps.jsx";
 import ReferenciasGps from "./ReferenciasGps.jsx";
 import ReportesGps from "./ReportesGps.jsx";
 import { ListaParaMarcar } from "./components/ListaParaMarcar.jsx";
@@ -29,8 +29,12 @@ import {
   borrarFilasGps,
   cambiarFilaGps,
   cambiosDeLaFilaGps,
+  crearFilasGps,
   cuentaDeLaSesion,
+  dejarEnCurso,
+  enCursosDelDia,
   guardarCabeceraGps,
+  guardarDiaGps,
   guardarOpcionGps,
   cambiarEnDescripcionesGps,
   guardarReglasGps,
@@ -39,13 +43,30 @@ import {
   leerReferenciasGps,
   leerReglasGps,
   listarEnCurso,
+  listarGps,
   ponerAlDiaGps,
   traerTodoGps,
   unirFilasGps,
 } from "./domain/gpsDb.js";
 import { guardarCopiaGps, leerCopiaGps } from "./domain/copiaGps.js";
 import { AvisoDeEspera, AvisoSinSenal, falloDeRed, sinSenalAhora, useSinSenal } from "./components/SinSenal.jsx";
-import { conBorradas, conCambio as conCambioEnEspera, conLoHechoMientras, conLoQueEspera, idsEnEspera, subirLaEspera } from "./domain/gps/espera.js";
+import {
+  conBorradas,
+  conCambio as conCambioEnEspera,
+  conDia,
+  conEnCurso,
+  conFilaCambiada,
+  conLoHechoMientras,
+  conLoQueEspera,
+  conReemplazo,
+  cuentaDeLaEspera,
+  enCursoEnEspera,
+  esLocal,
+  filaQueEspera,
+  idsEnEspera,
+  sinEnCurso,
+  subirLaEspera,
+} from "./domain/gps/espera.js";
 import { guardarEspera, leerEspera } from "./domain/filaDeEspera.js";
 import { cargarEquipos, elegirEquipoInicial, guardarEquipoElegido, leerEquipoElegido, soloParaMirar } from "./domain/equipo.js";
 import { cargarPlantelLesiones } from "./domain/lesionesDb.js";
@@ -227,6 +248,13 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const esperaActual = useRef([]);
   const [subiendo, setSubiendo] = useState(false);
   const subiendoAhora = useRef(false);
+  // Los días cargados sin señal que chocan con lo que cargó otra persona (la
+  // Regla 1), para preguntar de a uno: [{ dia, existentes }] (paso 3c.2b).
+  const [chocadas, setChocadas] = useState([]);
+  // Las cargas sin terminar de este aparato que ya subieron: su id en la base.
+  const subidasEnCurso = useRef(new Map());
+  // La de este aparato que está abierta en Cargar no se sube mientras tanto.
+  const abiertaEnCargar = useRef(null);
 
   // Ajustes: qué se mira y la hoja abierta.
   const [vistaAjustes, setVistaAjustes] = useState("inicio");
@@ -243,8 +271,8 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const mirar = soloParaMirar(equipo, "gps");
   const soloLectura = seFue || mirar || Boolean(deLaCopia);
   // Sin señal, en la Base se cambia y se borra igual (paso 3c.1 de «cargar
-  // sin señal…»; Santiago, 23/10). Cargar, Pegar y los V.R., con su parte del
-  // paso 3c; los Ajustes, solo con señal.
+  // sin señal…»; Santiago, 23/10) y se carga un día (paso 3c.2b). Pegar y los
+  // V.R., con su parte del paso 3c; los Ajustes, solo con señal.
   const baseSoloLectura = seFue || mirar;
   const sinConexion = Boolean(deLaCopia) || !enLinea;
   // Para ver GPS sin señal (Santiago, 21/10: la copia «Automática en todos,
@@ -567,7 +595,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   // Vuelve la señal mientras se ve la copia: lo de la base, al día (si algo
   // espera, se sube primero; ver «al subirla»).
   useEffect(() => {
-    if (enLinea && deLaCopia && !esperaActual.current.length) cargar();
+    if (enLinea && deLaCopia && !esperaActual.current.some((uno) => !uno.chocan)) cargar();
   }, [enLinea]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -948,6 +976,19 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   };
 
   const guardarFila = (id, cambiar) => {
+    // Una fila de un día cargado sin señal: el cambio queda en su día (sube
+    // con él). La fecha y el dispositivo son los del día.
+    if (esLocal(id)) {
+      const fila = filaQueEspera(esperaActual.current, id);
+      if (!fila) return Promise.resolve({ error: "gps.error.noGuardar" });
+      if (subiendoAhora.current) return Promise.resolve({ error: "gps.espera.subiendoAhora" });
+      const { fila: nueva, error: falta } = cambiar(fila);
+      if (falta) return Promise.resolve({ error: falta });
+      if (!nueva) return Promise.resolve({});
+      if (nueva.fecha !== fila.fecha || String(nueva.datos?.dispositivo ?? "") !== String(fila.datos?.dispositivo ?? "")) return Promise.resolve({ error: "gps.espera.mismoDia" });
+      ponerEspera(conFilaCambiada(esperaActual.current, nueva));
+      return Promise.resolve({});
+    }
     const unPaso = async () => {
       const fila = ultimas.current.find((una) => una.id === id);
       if (!fila) return { error: "gps.error.noGuardar" };
@@ -1024,9 +1065,21 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   // Todas las elegidas (con Shift, varias filas), de a tandas; si alguna no
   // se puede, se avisa cuántas se borraron.
   const confirmarBorrar = async () => {
-    const elegidas = aBorrar || [];
+    const todas = aBorrar || [];
     setABorrar(null);
-    if (!elegidas.length) return;
+    if (!todas.length) return;
+    // Las de un día cargado sin señal salen de su día (no están en la base).
+    const locales = todas.filter((fila) => esLocal(fila.id));
+    if (locales.length && subiendoAhora.current) {
+      setAviso(t("gps.espera.subiendoAhora"));
+      return;
+    }
+    if (locales.length) ponerEspera(conBorradas(esperaActual.current, locales.map((fila) => fila.id)));
+    const elegidas = todas.filter((fila) => !esLocal(fila.id));
+    if (!elegidas.length) {
+      setAviso(locales.length === 1 ? t("gps.borrada") : t("gps.borradas", { n: locales.length }));
+      return;
+    }
     // Sin señal (o si se corta en el camino), a la fila de espera.
     const aLaEspera = (ids) => {
       ponerEspera(conBorradas(esperaActual.current, ids));
@@ -1056,17 +1109,38 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   // ---------------------------------------- La fila de espera, al subirla --
 
   // Al volver la señal se sube sola y avisa (Santiago, 21/10: «Lo sube sola y
-  // avisa»), y la Base se pone al día con lo de la base.
-  const subir = async () => {
-    const enviada = esperaActual.current;
-    if (subiendoAhora.current || !enviada.length || !equipoId || seFue) return false;
+  // avisa»), y la Base se pone al día con lo de la base. Un día que choca
+  // con lo que cargó otra persona espera y se pregunta («Espera y te
+  // pregunta», como en Evaluaciones); solo no se vuelve a intentar:
+  // conChocadas, cuando se pide. La carga de este aparato abierta en Cargar
+  // espera a que se cierre.
+  const subir = async ({ conChocadas = false } = {}) => {
+    if (subiendoAhora.current || !equipoId || seFue) return false;
+    const enviada = esperaActual.current.filter((uno) => (conChocadas || !uno.chocan) && !(uno.tipo === "enCurso" && uno.id === abiertaEnCargar.current));
+    if (!enviada.length) {
+      if (enLinea && deLaCopia) cargar();
+      return false;
+    }
     subiendoAhora.current = true;
     setSubiendo(true);
     const resultado = await subirLaEspera(enviada, {
-      funciones: { cambiar: cambiarFilaGps, actualizar: actualizarFilaGps, borrar: borrarFilasGps },
+      funciones: {
+        cambiar: cambiarFilaGps,
+        actualizar: actualizarFilaGps,
+        borrar: borrarFilasGps,
+        guardarDia: (dia) => guardarDiaGps(equipoId, dia),
+        crear: (filasDelDia) => crearFilasGps(equipoId, filasDelDia),
+        listar: (fecha) => listarGps(equipoId, { desde: fecha, hasta: fecha }),
+        dejar: (carga) => dejarEnCurso(equipoId, carga),
+        enCursos: (fecha) => enCursosDelDia(equipoId, fecha),
+        leerEnCurso,
+        borrarEnCurso,
+      },
       filaDe: (id) => actuales.current.find((una) => una.id === id) || null,
+      csvDe: (datos) => filasDelCsvEnCurso(datos, gps.columnas),
       esDeRed: falloDeRed,
     });
+    resultado.subidasEnCurso.forEach(({ local, id }) => subidasEnCurso.current.set(local, id));
     // Lo que devolvió la base, al toque (sin esperar a ponerse al día).
     const borradas = new Set(resultado.borradas);
     const devueltas = new Map(resultado.devueltas.map((fila) => [fila.id, fila]));
@@ -1075,19 +1149,29 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
       actuales.current = nuevas;
       setFilasGps(nuevas);
     }
-    ponerEspera(conLoHechoMientras(esperaActual.current, { enviada, ...resultado }));
     const columnasPisadas = resultado.pisadas.map((pisada) => nombreDeLaClave(pisada.clave));
     const noSubieron = resultado.errores.reduce((total, uno) => total + uno.ids.length, 0);
+    const descartada = ({ tipo, fecha, otra }) =>
+      tipo === "repetida"
+        ? t("gps.espera.enCursoRepetida", { fecha: fechaCorta(fecha), quien: otra?.actualizado_email || "—", cuando: otra?.actualizado_en ? fechaYHora(otra.actualizado_en) : "—" })
+        : t({ dia: "gps.espera.diaRepetido", enLaBase: "gps.espera.enCursoEnLaBase", otroAparato: "gps.espera.enCursoOtroAparato" }[tipo], { fecha: fechaCorta(fecha) });
     const partes = [
       resultado.subidos ? plural("sinSenal.subidos", resultado.subidos) : "",
+      resultado.reemplazadas ? plural("gps.cargar.reemplazadas", resultado.reemplazadas) : "",
       columnasPisadas.length ? t("gps.cambios.pisadas", { columnas: enLista([...new Set(columnasPisadas)]) }) : "",
       resultado.borradasPorOtra ? plural("gps.espera.borradas", resultado.borradasPorOtra) : "",
+      ...resultado.descartadas.map(descartada),
+      resultado.sinBorrar ? t("gps.enCurso.quedoSinBorrar") : "",
       noSubieron ? plural("sinSenal.noSubieron", noSubieron, { error: t(resultado.errores[0].error) }) : "",
     ].filter(Boolean);
     if (partes.length) setAviso(partes.join(" "));
-    // Desde la copia del aparato, todo al día; si no, lo cambiado.
+    // Desde la copia del aparato, todo al día; si no, lo cambiado. Lo
+    // subido sale de la cola después: así no desaparece un rato.
     if (deLaCopia) await cargar();
     else await ponerAlDia();
+    ponerEspera(conLoHechoMientras(esperaActual.current, { enviada, ...resultado }));
+    if (resultado.conEnCurso) cargarEnCurso({ silencioso: true });
+    if (resultado.chocadas.length) setChocadas((antes) => [...antes.filter((una) => !resultado.chocadas.some((otra) => otra.dia.id === una.dia.id)), ...resultado.chocadas]);
     subiendoAhora.current = false;
     setSubiendo(false);
     return true;
@@ -1096,24 +1180,33 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   subirAlVolver.current = subir;
   // Con señal y algo esperando, se sube: al volver la señal, al abrir y, si
   // la señal anda a medias, cada medio minuto.
+  const cuentaEspera = useMemo(() => cuentaDeLaEspera(espera), [espera]);
   useEffect(() => {
-    if (!enLinea || !espera.length || seFue || cargando) return undefined;
+    if (!enLinea || !cuentaEspera.pendientes || seFue || cargando) return undefined;
     const ya = setTimeout(() => subirAlVolver.current(), deLaCopia ? 0 : 1500);
     const otraVez = setInterval(() => subirAlVolver.current(), 30000);
     return () => {
       clearTimeout(ya);
       clearInterval(otraVez);
     };
-  }, [enLinea, espera.length, seFue, cargando, Boolean(deLaCopia)]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [enLinea, cuentaEspera.pendientes, seFue, cargando, Boolean(deLaCopia)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ------------------------------------------------------------ Pantallas --
 
+  // Lo que espera, arriba (sin señal, también que se ve la copia).
+  const avisoDeEspera = deLaCopia ? (
+    <AvisoDeEspera sinSenal guardadaEn={deLaCopia.guardadaEn} cuantos={cuentaEspera.total} />
+  ) : !enLinea ? (
+    <AvisoDeEspera sinSenal cuantos={cuentaEspera.total} />
+  ) : (
+    <AvisoDeEspera cuantos={cuentaEspera.total} chocan={cuentaEspera.chocan} subiendo={subiendo} alSubir={() => subir({ conChocadas: Boolean(cuentaEspera.chocan) })} />
+  );
   const estado = deLaCopia ? (
-    <AvisoDeEspera sinSenal guardadaEn={deLaCopia.guardadaEn} cuantos={espera.length} />
+    avisoDeEspera
   ) : !enLinea && (error || cargando) ? (
     <p className="lesiones-estado">{t("gps.estado.sinConexion")}</p>
   ) : !enLinea ? (
-    <AvisoDeEspera sinSenal cuantos={espera.length} />
+    avisoDeEspera
   ) : error ? (
     <div className="lesiones-estado error">
       {t(error)}{" "}
@@ -1128,7 +1221,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   ) : cargando ? (
     <p className="lesiones-estado">{t("gps.estado.cargando")}</p>
   ) : espera.length ? (
-    <AvisoDeEspera cuantos={espera.length} subiendo={subiendo} alSubir={() => subir()} />
+    avisoDeEspera
   ) : null;
 
   // Los V.R., hasta su parte del paso 3c, sin señal son para mirar (el
@@ -1192,9 +1285,11 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
           <div className="lesiones-estado gps-revisar-carga" role="status">
             {revisarCarga.pegado
               ? plural("gps.importar.mismaSesion.enEspera", revisarCarga.dias.length, { fecha: fechaCorta(revisarCarga.dias[0]) })
-              : t("gps.cargar.mismaSesion.enEspera", { fecha: fechaCorta(revisarCarga.fecha) })}{" "}
-            <button type="button" onClick={() => seguirLaCarga()}>
-              {revisarCarga.pegado ? t("gps.importar.mismaSesion.seguir") : t("gps.cargar.mismaSesion.seguir")}
+              : revisarCarga.espera
+                ? t("gps.espera.enEsperaRevisar", { fecha: fechaCorta(revisarCarga.fecha) })
+                : t("gps.cargar.mismaSesion.enEspera", { fecha: fechaCorta(revisarCarga.fecha) })}{" "}
+            <button type="button" onClick={() => seguirLaCarga()} disabled={revisarCarga.espera && (!enLinea || subiendo)}>
+              {revisarCarga.pegado ? t("gps.importar.mismaSesion.seguir") : revisarCarga.espera ? t("gps.espera.subirLoQueEspera") : t("gps.cargar.mismaSesion.seguir")}
             </button>{" "}
             <button type="button" onClick={() => setRevisarCarga(null)}>
               {t("gps.cargar.mismaSesion.verTodo")}
@@ -1239,17 +1334,42 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   const conHoy = !cargando && !error;
   const deHoy = conHoy ? filasVistas.filter((fila) => fila.fecha === hoy).length : null;
 
-  // Guardado el día: a la Base.
-  const alCargarDia = ({ cargadas, reemplazadas = 0, fecha, quedoEnCurso = false }) => {
+  // Guardado el día: a la Base. Sin señal quedó en este aparato (en otro
+  // color en la Base) y se sube solo.
+  const alCargarDia = ({ cargadas, reemplazadas = 0, fecha, quedoEnCurso = false, alAparato = false }) => {
     diaSinGuardar.current = false;
     setCargandoDia(false);
     setCargaEnCurso(null);
     setRevisarCarga(null);
     setVista("base");
+    if (alAparato) {
+      setAviso(plural("gps.espera.diaEnElAparato", cargadas, { fecha: fecha ? fechaCorta(fecha) : "—" }));
+      return;
+    }
     ponerAlDia();
     const listo = plural("gps.cargar.listo", cargadas, { fecha: fecha ? fechaCorta(fecha) : "—" });
     setAviso(quedoEnCurso ? t("gps.enCurso.quedoSinBorrar") : reemplazadas ? `${listo} ${plural("gps.cargar.reemplazadas", reemplazadas)}` : listo);
   };
+
+  // Lo que «Cargar un día» deja en este aparato sin señal (paso 3c.2b).
+  const delAparato = useMemo(
+    () => ({
+      filas: filasVistas,
+      enCurso: enCursoEnEspera(espera),
+      alGuardar: (dia) => ponerEspera(conDia(esperaActual.current, dia).cola),
+      alDejar: (carga) => {
+        const { cola: nueva, id } = conEnCurso(esperaActual.current, carga);
+        ponerEspera(nueva);
+        return id;
+      },
+      quitar: (id) => {
+        const estaba = esperaActual.current.find((uno) => uno.tipo === "enCurso" && uno.id === id) || null;
+        if (estaba) ponerEspera(sinEnCurso(esperaActual.current, id));
+        return estaba;
+      },
+    }),
+    [filasVistas, espera], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   // Regla 1, «Ir a la Base»: la carga quedó en «Sin terminar» y la Base se
   // abre con las filas de esa sesión que ya estaban (la fecha, esos jugadores
@@ -1265,6 +1385,12 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     ponerAlDia();
   };
   const seguirLaCarga = () => {
+    // Lo cargado sin señal que chocaba: se sube otra vez (y se pregunta si sigue chocando).
+    if (revisarCarga?.espera) {
+      setRevisarCarga(null);
+      subir({ conChocadas: true });
+      return;
+    }
     if (revisarCarga?.pegado) {
       setRevisarCarga(null);
       setImportando(true);
@@ -1290,19 +1416,34 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     setVista("base");
   };
 
-  // Dejado para revisar: vuelve a Cargar, donde queda en «Sin terminar».
-  const alDejarDia = () => {
+  // Dejado para revisar: vuelve a Cargar, donde queda en «Sin terminar» (sin
+  // señal, en este aparato).
+  const alDejarDia = ({ alAparato = false } = {}) => {
     diaSinGuardar.current = false;
     setCargandoDia(false);
     setCargaEnCurso(null);
-    cargarEnCurso();
-    setAviso(t("gps.enCurso.dejada"));
+    if (!alAparato) cargarEnCurso();
+    setAviso(t(alAparato ? "gps.enCurso.dejadaEnElAparato" : "gps.enCurso.dejada"));
   };
 
   // Seguir una carga sin terminar en el paso donde quedó (también la última,
-  // si la siguieron en otro aparato).
+  // si la siguieron en otro aparato). Una de este aparato se abre sin señal
+  // (si ya subió, la de la base).
   const seguirEnCurso = async (id) => {
     if (!id || abriendoEnCurso) return;
+    if (esLocal(id)) {
+      const deAca = esperaActual.current.find((uno) => uno.tipo === "enCurso" && uno.id === id);
+      if (!deAca) {
+        if (subidasEnCurso.current.has(id)) seguirEnCurso(subidasEnCurso.current.get(id));
+        else setErrorEnCurso("gps.enCurso.noSeAbrio");
+        return;
+      }
+      setErrorEnCurso("");
+      diaSinGuardar.current = false;
+      setCargaEnCurso({ id: deAca.id, version: null, paso: deAca.paso, datos: deAca.datos });
+      setCargandoDia(true);
+      return;
+    }
     setAbriendoEnCurso(id);
     const respuesta = await leerEnCurso(id);
     setAbriendoEnCurso(null);
@@ -1319,10 +1460,42 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
     setCargandoDia(true);
   };
 
+  // Un día cargado sin señal que es la misma sesión que cargó otra persona
+  // con otros datos (la Regla 1): «Reemplazar y cargar» o «Ir a la Base»
+  // (espera, en otro color, para revisar esas filas), de a uno.
+  const chocada = chocadas[0] || null;
+  const quienesDeLaChocada = [];
+  (chocada?.existentes || []).forEach((fila) => {
+    const clave = fila.jugador_id ? `j:${fila.jugador_id}` : `p:${String(fila.persona || "").toLowerCase()}`;
+    const ya = quienesDeLaChocada.find((uno) => uno.clave === clave);
+    if (ya) ya.filas += 1;
+    else quienesDeLaChocada.push({ clave, nombre: nombreDe(fila) || "—", filas: 1 });
+  });
+  const reemplazarChocada = () => {
+    setChocadas((antes) => antes.slice(1));
+    if (!chocada) return;
+    ponerEspera(conReemplazo(esperaActual.current, chocada.dia.id));
+    subir();
+  };
+  const verChocadaEnLaBase = () => {
+    setChocadas((antes) => antes.slice(1));
+    if (!chocada) return;
+    const { dia, existentes } = chocada;
+    const nombres = [...new Set([...existentes, ...dia.filas].filter((fila) => !fila.promedio).map(nombreDe).filter(Boolean))];
+    setRevisarCarga({ espera: true, fecha: dia.fecha, vez: Date.now(), filtros: { fecha: [fechaCorta(dia.fecha)], jugador: nombres, dispositivo: [nombreDelDispositivo(dia.dispositivo)] } });
+    setVista("base");
+  };
+
   const confirmarBorrarEnCurso = async () => {
     const carga = enCursoABorrar;
     setEnCursoABorrar(null);
     if (!carga) return;
+    // Una de este aparato: sale de la fila de espera.
+    if (esLocal(carga.id)) {
+      ponerEspera(sinEnCurso(esperaActual.current, carga.id));
+      setAviso(t("gps.enCurso.borrada", { fecha: fechaCorta(carga.fecha) }));
+      return;
+    }
     const { error: falla } = await borrarEnCurso(carga.id);
     if (falla) {
       setErrorEnCurso(falla);
@@ -1335,26 +1508,47 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   // Una carga sin terminar en la lista, con la misma cara que una lesión
   // en curso en Lesiones (Santiago, 13/10: «que aparesca en un cuadro abajo
   // de cargar como aparecen las lesion sin fecha de retorno»).
-  const tarjetaEnCurso = (carga) => (
-    <div className="registro-guardado lesiones-registro" key={carga.id}>
-      <span className="cabecera-registro">
-        <span className="fecha-registro">{fechaCorta(carga.fecha)}</span>
-        {carga.resumen.pasos > 0 && <span className="lesiones-caso">{t("gps.enCurso.paso", { n: carga.resumen.paso, total: carga.resumen.pasos })}</span>}
-      </span>
-      <div className="lesiones-registro-cuerpo">
-        <strong>{carga.resumen.titulo || t("gps.enCurso.sinTitulo")}</strong>
-        <span>{t("gps.enCurso.dejadaPor", { quien: carga.actualizado_email || "—", cuando: carga.actualizado_en ? fechaYHora(carga.actualizado_en) : "—" })}</span>
+  // Las de este aparato (dejadas sin señal) van con su marca y en otro
+  // color, como lo que espera en las bases; se siguen sin señal.
+  const tarjetaEnCurso = (carga) => {
+    const deAca = esLocal(carga.id);
+    const resumen = carga.resumen || {};
+    return (
+      <div className={`registro-guardado lesiones-registro ${deAca ? "espera" : ""}`.trim()} key={carga.id}>
+        <span className="cabecera-registro">
+          <span className="fecha-registro">{fechaCorta(carga.fecha)}</span>
+          {resumen.pasos > 0 && <span className="lesiones-caso">{t("gps.enCurso.paso", { n: resumen.paso, total: resumen.pasos })}</span>}
+          {deAca && <span className="lesiones-espera">{t("gps.espera.chip")}</span>}
+        </span>
+        <div className="lesiones-registro-cuerpo">
+          <strong>{resumen.titulo || t("gps.enCurso.sinTitulo")}</strong>
+          <span>
+            {deAca
+              ? t("gps.enCurso.dejadaAca", { cuando: carga.dejadaEn ? fechaYHora(carga.dejadaEn) : "—" })
+              : t("gps.enCurso.dejadaPor", { quien: carga.actualizado_email || "—", cuando: carga.actualizado_en ? fechaYHora(carga.actualizado_en) : "—" })}
+          </span>
+        </div>
+        <div className="acciones-registro">
+          <button type="button" className="boton-detalle" onClick={() => seguirEnCurso(carga.id)} disabled={deAca ? subiendo : !enLinea || Boolean(abriendoEnCurso)}>
+            {abriendoEnCurso === carga.id ? t("gps.enCurso.abriendo") : t("gps.enCurso.seguir")}
+          </button>
+          <button
+            type="button"
+            className="boton-eliminar-registro"
+            aria-label={t("gps.enCurso.borrar", { fecha: fechaCorta(carga.fecha) })}
+            onClick={() => setEnCursoABorrar(carga)}
+            disabled={deAca ? subiendo : !enLinea}
+          >
+            <Icono nombre="borrar" size={18} />
+          </button>
+        </div>
       </div>
-      <div className="acciones-registro">
-        <button type="button" className="boton-detalle" onClick={() => seguirEnCurso(carga.id)} disabled={!enLinea || Boolean(abriendoEnCurso)}>
-          {abriendoEnCurso === carga.id ? t("gps.enCurso.abriendo") : t("gps.enCurso.seguir")}
-        </button>
-        <button type="button" className="boton-eliminar-registro" aria-label={t("gps.enCurso.borrar", { fecha: fechaCorta(carga.fecha) })} onClick={() => setEnCursoABorrar(carga)}>
-          <Icono nombre="borrar" size={18} />
-        </button>
-      </div>
-    </div>
-  );
+    );
+  };
+  // Primero las de este aparato (las otras se siguen y se borran con
+  // señal). La de la base que siguió una de este aparato no se repite.
+  const sinTerminar = [...delAparato.enCurso, ...enCurso.filter((una) => !delAparato.enCurso.some((otra) => otra.base?.id === una.id))];
+  abiertaEnCargar.current = cargandoDia ? cargaEnCurso?.id ?? null : null;
 
   const pantallaCargar = (
     <div className="app app-inicio">
@@ -1380,11 +1574,11 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
           </div>
         </header>
 
-        {!soloLectura && <p className="pantalla-donde">{t("gps.donde.cargar")}</p>}
+        {!baseSoloLectura && <p className="pantalla-donde">{t("gps.donde.cargar")}</p>}
         <AvisoSoloLectura hasta={equipo?.hasta} mirar={mirar} modulo="gps" />
-        {!enLinea && <p className="lesiones-estado">{t("gps.estado.sinConexion")}</p>}
+        {baseSoloLectura ? !enLinea && <p className="lesiones-estado">{t("gps.estado.sinConexion")}</p> : avisoDeEspera}
 
-        {!soloLectura && (
+        {!baseSoloLectura && (
           <div className="acciones-inicio lesiones-acciones">
             <button
               type="button"
@@ -1393,13 +1587,12 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
                 setCargaEnCurso(null);
                 setCargandoDia(true);
               }}
-              disabled={!enLinea}
             >
               {t("gps.cargar.nuevo")}
             </button>
           </div>
         )}
-        {!soloLectura && errorEnCurso && (
+        {!baseSoloLectura && errorEnCurso && (
           <div className="lesiones-estado error">
             {t(errorEnCurso)}{" "}
             <button type="button" onClick={() => cargarEnCurso()}>
@@ -1407,11 +1600,11 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
             </button>
           </div>
         )}
-        {!soloLectura && enCurso.length > 0 && (
+        {!baseSoloLectura && sinTerminar.length > 0 && (
           <section className="lesiones-sin-fecha gps-en-curso">
-            <h2>{plural("gps.enCurso.titulo", enCurso.length)}</h2>
-            <p className="lesiones-ayuda">{t("gps.enCurso.texto")}</p>
-            <div className="lesiones-lista">{enCurso.map(tarjetaEnCurso)}</div>
+            <h2>{plural("gps.enCurso.titulo", sinTerminar.length)}</h2>
+            <p className="lesiones-ayuda">{t(sinConexion ? "gps.enCurso.textoSinSenal" : "gps.enCurso.texto")}</p>
+            <div className="lesiones-lista">{sinTerminar.map(tarjetaEnCurso)}</div>
           </section>
         )}
       </div>
@@ -1839,7 +2032,7 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
   if (vista === "ajustes") contenido = pantallaAjustes();
   else if (vista === "cargar")
     contenido =
-      cargandoDia && !soloLectura ? (
+      cargandoDia && !baseSoloLectura ? (
         <CargarGps
           key={cargaEnCurso ? `${cargaEnCurso.id}:${cargaEnCurso.version}` : "nueva"}
           gps={gps}
@@ -1854,8 +2047,9 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
           fijas={fijas}
           armarFila={armarFila}
           conCambio={conCambio}
-          enLinea={enLinea}
+          enLinea={!sinConexion}
           enCurso={cargaEnCurso}
+          delAparato={delAparato}
           onListo={alCargarDia}
           onCancelar={() => {
             setCargandoDia(false);
@@ -2159,6 +2353,29 @@ export default function Gps({ onVolver, volverA = "portal.basesTitulo" }) {
         etiquetaCancelar={t("comun.cancelar")}
         onConfirmar={confirmarBorrarEnCurso}
         onCancelar={() => setEnCursoABorrar(null)}
+      />
+      {/* Lo cargado sin señal que choca con lo que cargó otra persona
+          («Espera y te pregunta»), fuera de los pasos de Cargar y de Pegar. */}
+      <HojaConfirmar
+        abierta={Boolean(chocada) && !cargandoDia && !importando}
+        icono="refrescar"
+        titulo={t("gps.cargar.mismaSesion.titulo")}
+        descripcion={plural("gps.espera.choques", quienesDeLaChocada.length, { fecha: chocada ? fechaCorta(chocada.dia.fecha) : "—", dispositivo: chocada ? nombreDelDispositivo(chocada.dia.dispositivo) : "—" })}
+        detalle={
+          <div className="gps-misma-sesion">
+            <ul className="consentimiento-personas">
+              {quienesDeLaChocada.map((uno) => (
+                <li key={uno.clave}>{t("gps.cargar.mismaSesion.quien", { nombre: uno.nombre, filas: plural("gps.cargar.mismaSesion.filas", uno.filas) })}</li>
+              ))}
+            </ul>
+            <p>{t("gps.espera.queHace", { dispositivo: chocada ? nombreDelDispositivo(chocada.dia.dispositivo) : "—" })}</p>
+          </div>
+        }
+        etiquetaCancelar={t("gps.cargar.mismaSesion.irALaBase")}
+        etiquetaConfirmar={t("gps.cargar.mismaSesion.reemplazar")}
+        onCancelar={verChocadaEnLaBase}
+        onConfirmar={reemplazarChocada}
+        onCerrar={() => setChocadas((antes) => antes.slice(1))}
       />
     </MarcoAplicacion>
   );

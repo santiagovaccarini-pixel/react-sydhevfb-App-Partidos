@@ -7,6 +7,7 @@ import { ListaParaMarcar } from "./components/ListaParaMarcar.jsx";
 import { HojaInferior } from "./components/SheetPanel.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { useConsentimientoPersonas } from "./components/Consentimiento.jsx";
+import { AvisoDeEspera, falloDeRed } from "./components/SinSenal.jsx";
 import { opcionesDeLista, tituloDeColumna } from "./domain/evaluaciones/ajustes.js";
 import { configGpsVacia } from "./domain/gps/ajustes.js";
 import {
@@ -26,6 +27,7 @@ import {
   vsPartido,
 } from "./domain/gps/cargar.js";
 import { LISTAS_GPS } from "./domain/gps/columnas.js";
+import { esLocal } from "./domain/gps/espera.js";
 import { COMO_PERSONA, NO_CARGAR, buscadorDelGps, leerSegundos } from "./domain/gps/importar.js";
 import { esNumero, textoDeSegundos } from "./domain/gps/valores.js";
 import { borrarEnCurso, crearFilasGps, dejarEnCurso, enCursosDelDia, guardarDiaGps, leerDispositivosRecordados, leerEnCurso, listarGps, partidoDelDia, recordarDispositivo } from "./domain/gpsDb.js";
@@ -122,6 +124,8 @@ const estadoInicial = () => ({
 // elegido y lo corregido). Lo demás sale de ahí.
 export const FORMATO_EN_CURSO = 1;
 const estadoDeEnCurso = (datos) => (datos?.formato === FORMATO_EN_CURSO && datos.estado && typeof datos.estado === "object" ? { ...estadoInicial(), ...datos.estado } : estadoInicial());
+// Las filas del CSV de una carga sin terminar (para ver si es el mismo CSV).
+export const filasDelCsvEnCurso = (datos, columnas) => estadoDeEnCurso(datos).csv.flatMap((uno) => leerCsvCatapult(uno.texto, columnas).filas);
 
 export default function CargarGps({
   gps,
@@ -142,6 +146,12 @@ export default function CargarGps({
   enLinea = true,
   // La carga sin terminar que se sigue: { id, version, paso, datos } (sin ella, una nueva).
   enCurso = null,
+  // Sin señal (paso 3c.2b de «cargar sin señal…»; Santiago, 23/10): lo
+  // guardado y lo dejado para revisar quedan en este aparato y se suben solos
+  // cuando vuelve la señal. { filas: las que se ven en la Base, enCurso: las
+  // dejadas en este aparato, alGuardar(día), alDejar(carga) → su id,
+  // quitar(id) → la que estaba }. Sin él, todo con señal.
+  delAparato = null,
   onListo,
   onCancelar,
   onSinGuardar,
@@ -246,11 +256,13 @@ export default function CargarGps({
   };
   // Ese día ya tiene una carga sin terminar: quién la dejó y cuándo.
   const textoEnCurso = (otra) =>
-    t("gps.enCurso.enCursoDelDia", {
-      fecha: fechaCorta(otra?.fecha || estado.fecha),
-      quien: otra?.actualizado_email || "—",
-      cuando: otra?.actualizado_en ? fechaYHora(otra.actualizado_en) : "—",
-    });
+    otra?.local
+      ? t("gps.enCurso.enCursoEnEsteAparato", { fecha: fechaCorta(otra.fecha || estado.fecha) })
+      : t("gps.enCurso.enCursoDelDia", {
+          fecha: fechaCorta(otra?.fecha || estado.fecha),
+          quien: otra?.actualizado_email || "—",
+          cuando: otra?.actualizado_en ? fechaYHora(otra.actualizado_en) : "—",
+        });
 
   // ------------------------------------------------------------- El CSV --
   const leido = useMemo(() => {
@@ -331,7 +343,7 @@ export default function CargarGps({
 
   // ¿Ya está en la Base? Apenas se sabe la fecha (Santiago, 12/10: «si esta
   // avisa y no deja seguir, si no esta avisa y deja seguir»).
-  const claveDeRevision = leido && !leido.error && /^\d{4}-\d{2}-\d{2}$/.test(estado.fecha) ? `${estado.fecha}|${estado.csv.length}|${leido.filas.length}|${intento}` : "";
+  const claveDeRevision = leido && !leido.error && /^\d{4}-\d{2}-\d{2}$/.test(estado.fecha) ? `${estado.fecha}|${estado.csv.length}|${leido.filas.length}|${intento}|${enLinea ? "" : "aparato"}` : "";
   useEffect(() => {
     if (!claveDeRevision || !equipoId) {
       setRevision(null);
@@ -345,14 +357,35 @@ export default function CargarGps({
     // si cumple con las reglas de validacion avisa y lo descarta», con el
     // «Mismo CSV»; antes, 13/10, una por día: «lo frena y dice que ya esta en
     // curso ese cargado»).
+    // Lo de este aparato que todavía no subió: los días guardados sin señal
+    // (sin señal, todo lo que se ve en la Base) y las cargas dejadas acá.
+    const filasDeAca = (todas) => (delAparato?.filas || []).filter((fila) => fila.fecha === estado.fecha && (todas || esLocal(fila.id)));
+    const enCursoDeAca = () =>
+      (delAparato?.enCurso || []).find((otra) => otra.fecha === estado.fecha && otra.id !== esEnCurso.current?.id && filasEnOtroCsv(leido.filas, filasDelCsvEnCurso(otra.datos, gps.columnas))) || null;
+    // Sin señal, con lo de este aparato (al subir se mira otra vez).
+    const conLoDeAca = () => {
+      const filas = filasDeAca(true);
+      const iguales = filasYaEnLaBase(leido.filas, filas);
+      const deAca = iguales ? null : enCursoDeAca();
+      if (deAca) setRevision({ clave: claveDeRevision, estado: "enCurso", enCurso: { ...deAca, local: true } });
+      else setRevision({ clave: claveDeRevision, estado: iguales ? "esta" : "noEsta", iguales, delDia: filas.length, sinSenal: true });
+    };
     const revisar = async () => {
+      if (!enLinea && delAparato) {
+        conLoDeAca();
+        return;
+      }
       const [respuesta, delDia] = await Promise.all([listarGps(equipoId, { desde: estado.fecha, hasta: estado.fecha }), enCursosDelDia(equipoId, estado.fecha)]);
       if (!vigente) return;
+      if (delAparato && (falloDeRed(respuesta) || falloDeRed(delDia))) {
+        conLoDeAca();
+        return;
+      }
       if (respuesta.error || delDia.error) {
         setRevision({ clave: claveDeRevision, estado: "error" });
         return;
       }
-      const iguales = filasYaEnLaBase(leido.filas, respuesta.filas);
+      const iguales = filasYaEnLaBase(leido.filas, [...respuesta.filas, ...filasDeAca(false)]);
       if (!iguales) {
         for (const otra of delDia.enCurso.filter((una) => una.id !== esEnCurso.current?.id)) {
           const abierta = await leerEnCurso(otra.id); // eslint-disable-line no-await-in-loop
@@ -361,11 +394,15 @@ export default function CargarGps({
             setRevision({ clave: claveDeRevision, estado: "error" });
             return;
           }
-          const suyas = estadoDeEnCurso(abierta.enCurso.datos).csv.flatMap((uno) => leerCsvCatapult(uno.texto, gps.columnas).filas);
-          if (filasEnOtroCsv(leido.filas, suyas)) {
+          if (filasEnOtroCsv(leido.filas, filasDelCsvEnCurso(abierta.enCurso.datos, gps.columnas))) {
             setRevision({ clave: claveDeRevision, estado: "enCurso", enCurso: otra });
             return;
           }
+        }
+        const deAca = enCursoDeAca();
+        if (deAca) {
+          setRevision({ clave: claveDeRevision, estado: "enCurso", enCurso: { ...deAca, local: true } });
+          return;
         }
       }
       setRevision({ clave: claveDeRevision, estado: iguales ? "esta" : "noEsta", iguales, delDia: respuesta.total });
@@ -380,7 +417,8 @@ export default function CargarGps({
   // El partido de ese día en Partido (Santiago, 12/10): «Vs el rival de
   // turno» y los convocados que no ingresaron. Se mira apenas se sabe la
   // fecha (también si el CSV no trae los tiempos del partido) y se dice qué
-  // pasó; sin partido, el nombre se escribe a mano.
+  // pasó; sin partido, el nombre se escribe a mano. Sin señal no se mira:
+  // el «Vs» va a mano (Santiago, 23/10); al volver la señal, se mira.
   const hayBloques = Boolean(bloques);
   useEffect(() => {
     const fecha = estado.fecha;
@@ -388,12 +426,16 @@ export default function CargarGps({
       setDelPartido(null);
       return undefined;
     }
+    if (!enLinea && delAparato) {
+      setDelPartido({ fecha, estado: "sinSenal" });
+      return undefined;
+    }
     let vigente = true;
     setDelPartido({ fecha, estado: "buscando" });
     partidoDelDia(equipoId, fecha).then((encontrado) => {
       if (!vigente) return;
       if (encontrado?.error) {
-        setDelPartido({ fecha, estado: "error" });
+        setDelPartido({ fecha, estado: delAparato && falloDeRed(encontrado) ? "sinSenal" : "error" });
         return;
       }
       setDelPartido(encontrado ? { fecha, estado: "hay", rival: encontrado.rival, noIngresaron: encontrado.noIngresaron || [] } : { fecha, estado: "noHay" });
@@ -407,7 +449,8 @@ export default function CargarGps({
     return () => {
       vigente = false;
     };
-  }, [hayBloques, estado.fecha, equipoId, intentoPartido]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hayBloques, estado.fecha, equipoId, intentoPartido, enLinea]);
 
   // Quién es cada nombre del CSV: el jugador con ese nombre en Catapult o en
   // Datos básicos; si no, lo que se eligió (guardarlo con su nombre, un
@@ -1148,6 +1191,7 @@ export default function CargarGps({
     if (!delPartido || delPartido.fecha !== estado.fecha) return null;
     const fecha = fechaCorta(estado.fecha);
     if (delPartido.estado === "buscando") return <p className="lesiones-ayuda gps-cargar-partido">{t("gps.cargar.buscandoPartido", { fecha })}</p>;
+    if (delPartido.estado === "sinSenal") return hayPartido ? <p className="lesiones-estado gps-cargar-partido">{t("gps.cargar.partidoSinSenal", { fecha })}</p> : null;
     if (delPartido.estado === "error")
       return (
         <div className="lesiones-estado error gps-cargar-partido">
@@ -1238,7 +1282,7 @@ export default function CargarGps({
             )}
             {revision?.estado === "noEsta" && (
               <p className="lesiones-estado gps-cargar-revision gps-cargar-bien" role="status">
-                {t("gps.cargar.noEsta")}
+                {t(revision.sinSenal ? "gps.cargar.noEstaSinSenal" : "gps.cargar.noEsta")}
                 {revision.delDia > 0 ? ` ${plural("gps.cargar.otraSesion", revision.delDia)}` : ""}
               </p>
             )}
@@ -1669,6 +1713,9 @@ export default function CargarGps({
   // cargar»). La base revisa lo mismo con el día bloqueado. Sin esa
   // actualización, de a tandas, como antes: si se corta, lo guardado queda y
   // lo que falta se guarda al volver a tocar (lo de la tabla ya no se cambia).
+  // Sin señal (o si se corta en el camino), las mismas reglas con lo de este
+  // aparato y el día queda en él: se sube solo cuando vuelve la señal (paso
+  // 3c.2b; al subir se miran otra vez).
   const guardar = async ({ reemplazar = false } = {}) => {
     setOtraSesion(null);
     const lista =
@@ -1695,21 +1742,52 @@ export default function CargarGps({
     }
     setErrorPaso("");
     setFalla("");
+    const alAparato = !enLinea && Boolean(delAparato);
+    const personas = quedan.filter((fila) => !fila.jugador_id && !fila.promedio).map((fila) => fila.persona);
+    // Su consentimiento se confirma con señal.
+    if (alAparato && personas.some((nombre) => String(nombre ?? "").trim())) {
+      setFalla("gps.espera.personasConSenal");
+      return;
+    }
     // Las personas que no están en Datos básicos: antes de guardar, quien
     // carga confirma su consentimiento (20261103).
-    const permiso = await consentimiento.pedir(quedan.filter((fila) => !fila.jugador_id && !fila.promedio).map((fila) => fila.persona));
+    const permiso = alAparato ? { sigue: true } : await consentimiento.pedir(personas);
     if (!enPantalla.current) return;
     if (!permiso.sigue) {
       if (permiso.error) setFalla(permiso.error);
       return;
     }
     setProgreso({ n: desde, total: lista.length });
+    // Al aparato: lo de este aparato, con las mismas reglas.
+    const enElAparato = () => {
+      const delDia = (delAparato.filas || []).filter((fila) => fila.fecha === estado.fecha);
+      setProgreso(null);
+      if (filasYaEnLaBase(leido?.filas || [], delDia)) {
+        setFalla("gps.cargar.yaEstaAlGuardar");
+        return;
+      }
+      const otras = reemplazar ? [] : filasDeLaMismaSesion(quedan, delDia, estado.dispositivo);
+      if (otras.length) {
+        setOtraSesion({ filas: otras });
+        return;
+      }
+      delAparato.alGuardar({ fecha: estado.fecha, dispositivo: estado.dispositivo, filas: quedan, enCurso: deEnCurso, reemplazar });
+      onListo?.({ cargadas: quedan.length, fecha: estado.fecha, alAparato: true });
+    };
+    if (alAparato && !aMedias) {
+      enElAparato();
+      return;
+    }
     if (!aMedias) {
       // Las otras cargas sin terminar de ese día ya no frenan (Santiago,
       // 23/10: varias por día; la del mismo CSV se frena al leerlo).
       const respuesta = await listarGps(equipoId, { desde: estado.fecha, hasta: estado.fecha });
       if (!enPantalla.current) return;
-      if (respuesta.error || filasYaEnLaBase(leido?.filas || [], respuesta.filas)) {
+      if (delAparato && falloDeRed(respuesta)) {
+        enElAparato();
+        return;
+      }
+      if (respuesta.error || filasYaEnLaBase(leido?.filas || [], [...respuesta.filas, ...(delAparato?.filas || []).filter((fila) => fila.fecha === estado.fecha && esLocal(fila.id))])) {
         setProgreso(null);
         setFalla(respuesta.error ? "gps.cargar.noSeRevisoBase" : "gps.cargar.yaEstaAlGuardar");
         return;
@@ -1722,6 +1800,10 @@ export default function CargarGps({
       }
       const dia = await guardarDiaGps(equipoId, { fecha: estado.fecha, dispositivo: estado.dispositivo, filas: quedan, reemplazar });
       if (!enPantalla.current) return;
+      if (delAparato && falloDeRed(dia)) {
+        enElAparato();
+        return;
+      }
       if (!dia.sinFuncion) {
         setProgreso(null);
         // Otra persona guardó esa sesión mientras tanto: se pregunta con lo de ahora.
@@ -1737,8 +1819,7 @@ export default function CargarGps({
           setFalla(dia.error);
           return;
         }
-        // Ya está en la Base: deja de estar «Sin terminar».
-        const quitada = deEnCurso?.id ? await borrarEnCurso(deEnCurso.id) : { error: "" };
+        const quitada = await terminarEnCurso();
         onListo?.({ cargadas: dia.creadas, reemplazadas: dia.reemplazadas, fecha: estado.fecha, quedoEnCurso: Boolean(quitada.error) });
         return;
       }
@@ -1762,15 +1843,24 @@ export default function CargarGps({
       return;
     }
     setAMedias(null);
-    // Ya está en la Base: deja de estar «Sin terminar».
-    const quitada = deEnCurso?.id ? await borrarEnCurso(deEnCurso.id) : { error: "" };
+    const quitada = await terminarEnCurso();
     onListo?.({ cargadas: lista.length, fecha: estado.fecha, quedoEnCurso: Boolean(quitada.error) });
+  };
+  // Ya está en la Base: deja de estar «Sin terminar» (la de este aparato,
+  // y la de la base que había seguido ella).
+  const terminarEnCurso = async () => {
+    if (!deEnCurso?.id) return { error: "" };
+    if (!esLocal(deEnCurso.id)) return borrarEnCurso(deEnCurso.id);
+    const deAca = delAparato?.quitar(deEnCurso.id);
+    return deAca?.base?.id ? borrarEnCurso(deAca.base.id) : { error: "" };
   };
 
   // Dejar para revisar: todo lo hecho va a la base y se sigue desde
   // «Sin terminar», en este aparato o en otro, en el paso donde quedó. Con
   // verEnLaBase (la Regla 1, «Ir a la Base»), después se ven en la Base las
-  // filas de esa sesión que ya estaban.
+  // filas de esa sesión que ya estaban. Sin señal (o si se corta), queda en
+  // este aparato (Santiago, 23/10: «Queda en el aparato») y se sube sola
+  // cuando vuelve la señal.
   const dejar = async ({ verEnLaBase = null } = {}) => {
     if (!estado.csv.length || dejando) return;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(estado.fecha)) {
@@ -1787,21 +1877,43 @@ export default function CargarGps({
       return;
     }
     const donde = Math.min(paso, PASOS.length - 1);
-    setDejando(true);
-    setErrorPaso("");
-    setOtroAparato(false);
-    const respuesta = await dejarEnCurso(equipoId, {
-      id: deEnCurso?.id || null,
-      version: deEnCurso?.version || null,
+    const hecho = {
       fecha: estado.fecha,
       paso: donde,
       resumen: { titulo: String(tituloDe(actual) || "").slice(0, 160), paso: donde + 1, pasos: PASOS.length },
       datos: { formato: FORMATO_EN_CURSO, estado },
-    });
+    };
+    setErrorPaso("");
+    setOtroAparato(false);
+    const listo = (id, alAparato = false) => {
+      if (verEnLaBase) onVerEnLaBase?.({ fecha: estado.fecha, dispositivo: estado.dispositivo, filas: verEnLaBase.filas, enCursoId: id });
+      else onDejado?.({ fecha: estado.fecha, alAparato });
+    };
+    const enElAparato = () => {
+      const id = delAparato.alDejar({ id: deEnCurso?.id || null, version: deEnCurso?.version || null, ...hecho });
+      setDeEnCurso({ id, version: null });
+      listo(id, true);
+    };
+    if (!enLinea && delAparato) {
+      enElAparato();
+      return;
+    }
+    // Una de este aparato se deja en la base como la que había seguido (o nueva).
+    const deAca = esLocal(deEnCurso?.id) ? (delAparato?.enCurso || []).find((una) => una.id === deEnCurso.id) || null : null;
+    const enLaBase = esLocal(deEnCurso?.id) ? deAca?.base || null : deEnCurso;
+    setDejando(true);
+    let respuesta = await dejarEnCurso(equipoId, { id: enLaBase?.id || null, version: enLaBase?.version || null, ...hecho });
+    // La que había seguido la de este aparato ya no está: queda como nueva (como al subirla).
+    if (deAca && enLaBase && respuesta.error === "gps.enCurso.noEsta") respuesta = await dejarEnCurso(equipoId, { id: null, version: null, ...hecho });
     if (!enPantalla.current) return;
     setDejando(false);
+    if (delAparato && falloDeRed(respuesta)) {
+      enElAparato();
+      return;
+    }
     if (respuesta.error === "gps.enCurso.otroAparato") {
-      setOtroAparato(true);
+      // La última es la de la base (también si se seguía una de este aparato).
+      setOtroAparato({ id: enLaBase?.id ?? null });
       return;
     }
     if (respuesta.error === "gps.enCurso.noEsta") setDeEnCurso(null);
@@ -1809,9 +1921,9 @@ export default function CargarGps({
       setErrorPaso(t(respuesta.error));
       return;
     }
+    if (deAca) delAparato.quitar(deAca.id);
     setDeEnCurso({ id: respuesta.id, version: respuesta.version });
-    if (verEnLaBase) onVerEnLaBase?.({ fecha: estado.fecha, dispositivo: estado.dispositivo, filas: verEnLaBase.filas, enCursoId: respuesta.id });
-    else onDejado?.({ fecha: estado.fecha });
+    listo(respuesta.id);
   };
 
   // El título y la ayuda de cada paso.
@@ -1884,7 +1996,7 @@ export default function CargarGps({
           <div className="gps-cargar-titulo-fila">
             <h2>{tituloDe(actual)}</h2>
             {estado.csv.length > 0 && !aMedias && (
-              <button type="button" className="boton-secundario gps-cargar-dejar" onClick={() => dejar()} disabled={dejando || Boolean(progreso) || !enLinea}>
+              <button type="button" className="boton-secundario gps-cargar-dejar" onClick={() => dejar()} disabled={dejando || Boolean(progreso) || (!enLinea && !delAparato)}>
                 <Icono nombre="reloj" size={15} />
                 {dejando ? t("gps.enCurso.dejando") : t("gps.enCurso.dejar")}
               </button>
@@ -1893,12 +2005,12 @@ export default function CargarGps({
           {ayuda && <TextoConPasos texto={ayuda} />}
         </section>
 
-        {!enLinea && <p className="lesiones-estado">{t("gps.estado.sinConexion")}</p>}
+        {!enLinea && (delAparato ? <AvisoDeEspera sinSenal /> : <p className="lesiones-estado">{t("gps.estado.sinConexion")}</p>)}
         {errorPaso && <div className="aviso-hoja">{errorPaso}</div>}
         {otroAparato && (
           <div className="lesiones-estado error" role="status">
             {t("gps.enCurso.otroAparato")}{" "}
-            <button type="button" onClick={() => onAbrirEnCurso?.(deEnCurso?.id)}>
+            <button type="button" onClick={() => onAbrirEnCurso?.(otroAparato.id)}>
               {t("gps.enCurso.abrirUltima")}
             </button>
           </div>
@@ -1914,7 +2026,7 @@ export default function CargarGps({
             </BotonVolver>
           )}
           {ultimo ? (
-            <button type="button" className="boton-principal" onClick={() => guardar()} disabled={Boolean(progreso) || !enLinea || !resultado?.length}>
+            <button type="button" className="boton-principal" onClick={() => guardar()} disabled={Boolean(progreso) || (!enLinea && (!delAparato || Boolean(aMedias))) || !resultado?.length}>
               {progreso
                 ? t("gps.cargar.guardando", { n: progreso.n, total: progreso.total })
                 : aMedias
