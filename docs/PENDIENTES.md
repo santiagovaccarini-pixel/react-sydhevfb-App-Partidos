@@ -4158,6 +4158,10 @@ confirme.**
   - **Dónde**: Datos básicos, elegir un jugador y «Ver ficha» (solo el administrador): la hoja
     de abajo con su nombre, «Exportar sus datos», «Bajar el Excel» y «Bajar el JSON». Los
     archivos se llaman `datos-de-<nombre>-<fecha>`. Ahí va a ir también el borrado.
+  - **Borrar del todo a un atleta (derecho al olvido): descartado (23/10).** Santiago, en un
+    cuestionario, cuando Claude propuso arrancarlo como la nota que seguía: «no vamos a hacer
+    eso». No se suma el borrado a «Ver ficha» ni en otro lado; exportar queda como está.
+    **Queda prohibido** agregar el borrado del todo de un atleta, salvo un pedido nuevo.
   - **Arreglo (19/10, migración `20261105_exportar_atleta_partidos.sql`).** En la base del club,
     exportar decía «Falta una actualización de la base de datos». El diagnóstico en el SQL
     Editor dio «function unnest(jsonb) does not exist»: ahí los titulares y los convocados de
@@ -4882,7 +4886,8 @@ confirme.**
     el del último); cada celular recuerda solo lo que envió él a OpenField, así que un envío
     desde otro celular puede repetir cortes. Queda como riesgo conocido hasta esa nota.
   - **Nota cerrada (23/10):** pasos 1 a 4 hechos; Entrenamiento pasa a la nota de Flujo diario.
-- **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
+- **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido; descartado el
+  23/10: «no vamos a hacer eso»); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida; arreglada el 20/10); después, las grandes, cada una aparte (la planilla de valor
   referencial con carga por archivo y «Agregar V.R.» que lleve ahí con nombre libre; Flujo
