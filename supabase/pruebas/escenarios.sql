@@ -919,7 +919,8 @@ select pruebas.debe_fallar('...no muy grande', $$update gps_reglas set reglas = 
 select pruebas.debe_fallar('No cambia las reglas de otro club', $$insert into gps_reglas (equipo_id, reglas) values ('00000000-0000-0000-0000-0000000000c2', '{}')$$, 'row-level security');
 select pruebas.debe_fallar('...ni las borra', $$delete from gps_reglas$$, 'permission denied');
 -- Las cargas sin terminar (20261021_gps_en_curso.sql): se dejan para revisar
--- y se siguen desde otro aparato; una por día.
+-- y se siguen desde otro aparato. Desde 20261118_gps_en_curso_varias.sql, el
+-- mismo día puede tener varias (otro turno; la del mismo CSV la frena la app).
 select pruebas.esperar('Deja una carga para revisar', (select (gps_dejar_en_curso(null, null, '00000000-0000-0000-0000-0000000000c1', '2026-10-09', 3, '{"titulo":"Tarea 1","pasos":8}', '{"csv":[{"nombre":"dia.csv","texto":"Player Name"}]}') ->> 'version')::bigint), 1);
 select pruebas.esperar('...y la ve, con quién la dejó y el paso', (select creado_email || ',' || actualizado_email || ',' || paso from gps_en_curso), 'gps@uno.com,gps@uno.com,3');
 select pruebas.esperar('...y lo hecho', (select datos #>> '{csv,0,nombre}' from gps_en_curso_datos), 'dia.csv');
@@ -928,9 +929,9 @@ select pruebas.esperar('...queda en el paso nuevo, con lo nuevo', (select paso |
 select pruebas.debe_fallar('Desde otro aparato, con la versión que abrió antes, no la pisa', $q$select gps_dejar_en_curso((select id from gps_en_curso where fecha = '2026-10-09'), 1, '00000000-0000-0000-0000-0000000000c1', '2026-10-09', 4, '{}', '{}')$q$, 'gps_en_curso_otro_aparato');
 select pruebas.esperar('...y queda la que dejó el otro', (select paso from gps_en_curso), 5);
 select pruebas.debe_fallar('Una que ya no está no se sigue', $q$select gps_dejar_en_curso('00000000-0000-0000-0000-0000000e9999', 1, '00000000-0000-0000-0000-0000000000c1', '2026-10-09', 4, '{}', '{}')$q$, 'gps_en_curso_no_esta');
-select pruebas.debe_fallar('Otra carga del mismo día, no: ya está en curso', $q$select gps_dejar_en_curso(null, null, '00000000-0000-0000-0000-0000000000c1', '2026-10-09', 0, '{}', '{}')$q$, 'gps_en_curso_un_dia');
+select pruebas.esperar('Otra carga del mismo día (otro turno), también', (select (gps_dejar_en_curso(null, null, '00000000-0000-0000-0000-0000000000c1', '2026-10-09', 0, '{}', '{"csv":[]}') ->> 'version')::bigint), 1);
 select pruebas.esperar('...de otro día, sí', (select (gps_dejar_en_curso(null, null, '00000000-0000-0000-0000-0000000000c1', '2026-10-10', 0, '{}', '{"csv":[]}') ->> 'version')::bigint), 1);
-select pruebas.esperar('...y quedan las dos', (select count(*) from gps_en_curso) + (select count(*) from gps_en_curso_datos), 4);
+select pruebas.esperar('...y quedan las tres', (select count(*) from gps_en_curso) + (select count(*) from gps_en_curso_datos), 6);
 select pruebas.debe_fallar('No le cambia el club a una', $q$update gps_en_curso set equipo_id = '00000000-0000-0000-0000-0000000000c2'$q$, 'permission denied');
 select pruebas.debe_fallar('...ni la versión a mano', $q$update gps_en_curso set version = 9$q$, 'permission denied');
 select pruebas.debe_fallar('...ni quién la dejó', $q$update gps_en_curso set creado_email = 'otro@uno.com'$q$, 'permission denied');
@@ -938,7 +939,8 @@ select pruebas.debe_fallar('El resumen es un objeto', $q$update gps_en_curso set
 select pruebas.debe_fallar('...y lo hecho, también', $q$update gps_en_curso_datos set datos = '"texto"'$q$, 'gps_en_curso_datos_tamano');
 select pruebas.debe_fallar('No deja una carga en otro club', $q$select gps_dejar_en_curso(null, null, '00000000-0000-0000-0000-0000000000c2', '2026-10-09', 0, '{}', '{}')$q$, 'row-level security');
 select pruebas.esperar('Borra la del otro día', pruebas.filas($$delete from gps_en_curso where fecha = '2026-10-10'$$), 1);
-select pruebas.esperar('...y se va con lo hecho', (select count(*) from gps_en_curso) + (select count(*) from gps_en_curso_datos), 2);
+select pruebas.esperar('...y la otra del mismo día', pruebas.filas($$delete from gps_en_curso where fecha = '2026-10-09' and paso = 0$$), 1);
+select pruebas.esperar('...y se van con lo hecho', (select count(*) from gps_en_curso) + (select count(*) from gps_en_curso_datos), 2);
 reset role;
 select pruebas.esperar('Las tres filas quedan en las versiones', (select count(*) from versiones_datos where tabla = 'gps'), 3);
 select pruebas.esperar('...y quién las cargó', (select count(*) from gps where creado_por = '00000000-0000-0000-0000-000000000616' and actualizado_por = '00000000-0000-0000-0000-000000000616'), 3);

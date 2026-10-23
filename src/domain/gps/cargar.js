@@ -448,6 +448,12 @@ export const filasYaEnLaBase = (filasCsv = [], filasBase = []) => {
   }).length;
 };
 
+// ¿El CSV es el mismo que el de otra carga sin terminar? (Santiago, 23/10:
+// varias por día, pero la del «Mismo CSV» se frena con aviso.) Como con lo
+// que ya está en la Base: alguna fila con las mismas distancias, tiempo y
+// hora de inicio. Devuelve cuántas filas coinciden.
+export const filasEnOtroCsv = (filasCsv = [], otrasFilasCsv = []) => filasYaEnLaBase(filasCsv, otrasFilasCsv.map((fila) => ({ datos: fila?.valores || {} })));
+
 // Regla 1 (Santiago, 20/10: «Jugador, fecha y hora de incio para preguntar si
 // es duplicado»): ¿lo que se va a guardar es una sesión que ya está ese día,
 // con otros datos? Algún jugador (o persona) tiene ese día, con el mismo

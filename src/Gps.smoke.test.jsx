@@ -336,22 +336,16 @@ vi.mock("./domain/gpsDb.js", async (importOriginal) => ({
     return { error: "" };
   },
   listarEnCurso: async () => ({ enCurso: datos.enCurso.map(({ datos: hecho, ...fila }) => ({ ...fila })), faltaTabla: false, error: "" }),
-  enCursoDelDia: async (equipoId, fecha) => {
-    const fila = datos.enCurso.find((una) => una.fecha === fecha);
-    if (!fila) return { enCurso: null, error: "" };
-    const { datos: hecho, ...resto } = fila;
-    return { enCurso: { ...resto }, error: "" };
-  },
+  enCursosDelDia: async (equipoId, fecha) => ({ enCurso: datos.enCurso.filter((una) => una.fecha === fecha).map(({ datos: hecho, ...resto }) => ({ ...resto })), error: "" }),
   leerEnCurso: async (id) => {
     const fila = datos.enCurso.find((una) => una.id === id);
     return fila ? { enCurso: JSON.parse(JSON.stringify(fila)), error: "" } : { enCurso: null, error: "gps.enCurso.noEsta" };
   },
-  // Como la base: una por día; con id, solo si la versión es la que se abrió.
+  // Como la base: varias por día (20261118); con id, solo si la versión es la que se abrió.
   dejarEnCurso: async (equipoId, { id, version, fecha, paso, resumen, datos: hecho }) => {
     datos.dejadas.push({ id, version, fecha, paso, resumen, datos: JSON.parse(JSON.stringify(hecho)) });
     const quien = { actualizado_email: "yo@club.com", actualizado_en: "2026-10-13T13:49:00Z" };
     if (!id) {
-      if (datos.enCurso.some((una) => una.fecha === fecha)) return { id: null, version: null, error: "gps.enCurso.yaEnCurso" };
       const nueva = { id: `ec${datos.enCurso.length + 1}`, fecha, paso, resumen, version: 1, creado_email: "yo@club.com", creado_en: quien.actualizado_en, ...quien, datos: JSON.parse(JSON.stringify(hecho)) };
       datos.enCurso.push(nueva);
       return { id: nueva.id, version: 1, error: "" };
@@ -1630,18 +1624,20 @@ describe("GPS", () => {
     expect(cuadroEnCurso()).toBeNull();
   });
 
-  test("un día con una carga en curso: la frena, dice quién la dejó y no deja otra", async () => {
-    datos.enCurso = [UNA_EN_CURSO()];
+  // Santiago, 23/10: «Deja que hayas mas de una por dia, pero si cumple con
+  // las reglas de validacion avisa y lo descarta» (la del «Mismo CSV»).
+  test("el mismo CSV en una carga sin terminar: la frena, dice quién la dejó y no deja otra", async () => {
+    datos.enCurso = [UNA_EN_CURSO({ datos: { formato: 1, estado: { csv: [{ nombre: "dia.csv", texto: CSV_TAREAS(AYER) }] } } })];
     await montar();
     expect(cuadroEnCurso().textContent).toContain("La dejó otra@club.com el ");
     await tocar(boton("Cargar un día"));
     await pegarCsv(CSV_TAREAS(AYER));
-    await esperar(() => contenedor.textContent.includes(`Ya hay una carga en curso del ${fechaCorta(AYER)} (la dejó otra@club.com el `));
+    await esperar(() => contenedor.textContent.includes(`Ese CSV ya está en una carga sin terminar del ${fechaCorta(AYER)} (la dejó otra@club.com el `));
     expect(contenedor.textContent).not.toContain("No está en la Base: podés seguir.");
     await guardarIgual();
     await tocar(siguiente());
     expect(titulo()).toBe("El archivo del GPS");
-    expect(aviso()).toContain(`Ya hay una carga en curso del ${fechaCorta(AYER)}`);
+    expect(aviso()).toContain(`Ese CSV ya está en una carga sin terminar del ${fechaCorta(AYER)}`);
     expect(aviso()).toContain("Seguila desde «Sin terminar», en Cargar.");
     // Tampoco se deja otra de ese día para revisar.
     await tocar(boton("Dejar para revisar"));
@@ -1651,6 +1647,21 @@ describe("GPS", () => {
     await esperar(() => contenedor.textContent.includes("No está en la Base: podés seguir."));
     await tocar(siguiente());
     expect(titulo()).toBe("1. Rondo");
+  });
+
+  test("otro CSV del mismo día (otro turno), aunque haya una carga sin terminar, se sigue y se deja para revisar", async () => {
+    datos.plantel = CON_DELTA_Y_EPSILON();
+    datos.enCurso = [UNA_EN_CURSO({ datos: { formato: 1, estado: { csv: [{ nombre: "partido.csv", texto: CSV_PARTIDO(AYER) }] } } })];
+    await montar();
+    await tocar(boton("Cargar un día"));
+    await pegarCsv(CSV_TAREAS(AYER));
+    await esperar(() => contenedor.textContent.includes("No está en la Base: podés seguir."));
+    await guardarIgual();
+    await tocar(siguiente());
+    expect(titulo()).toBe("1. Rondo");
+    await tocar(boton("Dejar para revisar"));
+    expect(datos.dejadas).toHaveLength(1);
+    expect(datos.enCurso.map((una) => una.fecha)).toEqual([AYER, AYER]);
   });
 
   test("si la siguieron en otro aparato, no la pisa y deja abrir la última", async () => {

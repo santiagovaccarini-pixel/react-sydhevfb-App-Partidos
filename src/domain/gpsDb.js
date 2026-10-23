@@ -676,17 +676,20 @@ export const listarEnCurso = async (equipoId) => {
   return { enCurso: (Array.isArray(data) ? data : []).map(normalizarEnCurso), faltaTabla: false, error: "" };
 };
 
-// La de un día, si hay (para no empezar otra: «lo frena y dice que ya esta en
-// curso ese cargado»). Sin la migración, ninguna.
-export const enCursoDelDia = async (equipoId, fecha) => {
-  if (!equipoId || !/^\d{4}-\d{2}-\d{2}$/.test(String(fecha || ""))) return { enCurso: null, error: "" };
-  const { data, error } = await supabase.from("gps_en_curso").select(COLUMNAS_EN_CURSO).eq("equipo_id", equipoId).eq("fecha", fecha).limit(1);
+// Las de un día, livianas (una puede ser del mismo CSV: la app la frena).
+// Antes era una por día («lo frena y dice que ya esta en curso ese
+// cargado»); desde 20261118_gps_en_curso_varias.sql, varias (Santiago, 23/10:
+// «Deja que hayas mas de una por dia, pero si cumple con las reglas de
+// validacion avisa y lo descarta»). Sin la migración de las cargas sin
+// terminar, ninguna.
+export const enCursosDelDia = async (equipoId, fecha) => {
+  if (!equipoId || !/^\d{4}-\d{2}-\d{2}$/.test(String(fecha || ""))) return { enCurso: [], error: "" };
+  const { data, error } = await supabase.from("gps_en_curso").select(COLUMNAS_EN_CURSO).eq("equipo_id", equipoId).eq("fecha", fecha).order("actualizado_en", { ascending: false });
   if (error) {
     const clave = claveDeErrorEnCurso(error, "gps.enCurso.noSeLeyo");
-    return { enCurso: null, error: clave === "gps.enCurso.faltaMigracion" ? "" : clave };
+    return { enCurso: [], error: clave === "gps.enCurso.faltaMigracion" ? "" : clave };
   }
-  const fila = Array.isArray(data) ? data[0] : null;
-  return { enCurso: fila ? normalizarEnCurso(fila) : null, error: "" };
+  return { enCurso: (Array.isArray(data) ? data : []).map(normalizarEnCurso), error: "" };
 };
 
 // Una, con lo hecho, para seguirla.

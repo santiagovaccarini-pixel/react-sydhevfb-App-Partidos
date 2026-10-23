@@ -2717,7 +2717,8 @@ Salir con un día a medio cargar pregunta. Quien ya se fue del club no carga.
     pedido, como la tabla `gps`); quien ya se fue, no. Quién la dejó y cuándo lo pone la base.
   - **Una por día**: si ese día ya tiene una, el paso del CSV lo dice («Ya hay una carga en
     curso del …, la dejó …») y no deja seguir ni dejar otra; al guardar en la Base se vuelve a
-    mirar. Al guardar en la Base, deja de estar sin terminar.
+    mirar. Al guardar en la Base, deja de estar sin terminar. Reabierta (23/10, UI-075): varias
+    por día; la del mismo CSV se frena con aviso (ver «Hecho, paso 3c.2a»).
   - Si la siguieron desde otro aparato mientras estaba abierta, no se pisa: avisa («La
     siguieron desde otro aparato…») y deja abrir la última (cada vez que se deja, la versión
     sube).
@@ -4647,6 +4648,24 @@ confirme.**
     - **Lo que espera es trabajo de quien lo cargó**, como en los pasos 3a y 3b.
     - **Queda para las partes que siguen:** Cargar un día, Pegar desde una planilla y los V.R.
       siguen sin señal como antes (para mirar).
+  - **Hecho, paso 3c.2a (23/10, migración `20261118_gps_en_curso_varias.sql`, 2026.10.23.2;
+    UI-075): varias cargas sin terminar el mismo día.** Santiago: «Sí, seguí con Cargar un día
+    (Recomendado)». Al preguntarle qué pasa con un día dejado «para revisar» sin señal cuando ese
+    día ya tiene otra carga sin terminar (Claude ofrecía «Espera y te pregunta», «Gana la última,
+    con aviso» y «Queda solo en este aparato»), escribió «Deja que hayas mas de una por dia, pero
+    si cumple con las reglas de validacion avisa y lo descarta»; «la misma», «Mismo CSV
+    (Recomendado)»; y «Con y sin señal (Recomendado)». Claude lo separó en dos: esta parte (la
+    regla, con señal y en la base) y la 3c.2b (Cargar un día sin señal). Un día puede tener
+    varias cargas sin terminar; la del mismo CSV (alguna fila con las mismas distancias, tiempo y
+    hora de inicio) se frena en el paso del CSV con «Ese CSV ya está en una carga sin terminar
+    del …» y no deja seguir ni dejar otra. Al guardar en la Base, las otras del día ya no frenan.
+    En la base sale la regla de una por día (la del mismo CSV la frena la app: el CSV va adentro
+    de lo hecho).
+    - **Límite conocido:** dos personas que dejan el mismo CSV para revisar al mismo tiempo,
+      desde dos aparatos, pueden dejar las dos (la base no mira el CSV); al seguir una, la otra
+      sigue en «Sin terminar» y se puede borrar.
+    - **Queda prohibido** volver a una sola carga sin terminar por día o dejar seguir con un CSV
+      que ya está en otra, salvo un pedido nuevo.
     - **Queda prohibido** que lo hecho sin señal se pierda sin avisar o cambiar los Ajustes sin
       señal, salvo un pedido nuevo.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de

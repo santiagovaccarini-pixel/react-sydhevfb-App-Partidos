@@ -17,6 +17,7 @@ import {
   esArquero,
   faltaLoObligatorio,
   filasDeLaMismaSesion,
+  filasEnOtroCsv,
   filasYaEnLaBase,
   leerCsvCatapult,
   llegaAlCorte,
@@ -27,7 +28,7 @@ import {
 import { LISTAS_GPS } from "./domain/gps/columnas.js";
 import { COMO_PERSONA, NO_CARGAR, buscadorDelGps, leerSegundos } from "./domain/gps/importar.js";
 import { esNumero, textoDeSegundos } from "./domain/gps/valores.js";
-import { borrarEnCurso, crearFilasGps, dejarEnCurso, enCursoDelDia, guardarDiaGps, leerDispositivosRecordados, listarGps, partidoDelDia, recordarDispositivo } from "./domain/gpsDb.js";
+import { borrarEnCurso, crearFilasGps, dejarEnCurso, enCursosDelDia, guardarDiaGps, leerDispositivosRecordados, leerEnCurso, listarGps, partidoDelDia, recordarDispositivo } from "./domain/gpsDb.js";
 import { DUDOSO, nombreIgual } from "./domain/importarPersonas.js";
 import { actualesPrimero, cargarPlantelConCatapult, esActual } from "./domain/plantel.js";
 import { t, useIdioma } from "./idioma/index.js";
@@ -338,22 +339,38 @@ export default function CargarGps({
     }
     let vigente = true;
     setRevision({ clave: claveDeRevision, estado: "revisando" });
-    // También si ese día ya tiene una carga sin terminar (que no sea esta):
-    // «lo frena y dice que ya esta en curso ese cargado» (Santiago, 13/10).
-    Promise.all([listarGps(equipoId, { desde: estado.fecha, hasta: estado.fecha }), enCursoDelDia(equipoId, estado.fecha)]).then(([respuesta, delDia]) => {
+    // También si ese CSV ya está en otra carga sin terminar (que no sea esta).
+    // Un día puede tener varias (otro turno); la del mismo CSV se frena y se
+    // dice cuál es (Santiago, 23/10: «Deja que hayas mas de una por dia, pero
+    // si cumple con las reglas de validacion avisa y lo descarta», con el
+    // «Mismo CSV»; antes, 13/10, una por día: «lo frena y dice que ya esta en
+    // curso ese cargado»).
+    const revisar = async () => {
+      const [respuesta, delDia] = await Promise.all([listarGps(equipoId, { desde: estado.fecha, hasta: estado.fecha }), enCursosDelDia(equipoId, estado.fecha)]);
       if (!vigente) return;
       if (respuesta.error || delDia.error) {
         setRevision({ clave: claveDeRevision, estado: "error" });
         return;
       }
       const iguales = filasYaEnLaBase(leido.filas, respuesta.filas);
-      const otra = delDia.enCurso && delDia.enCurso.id !== esEnCurso.current?.id ? delDia.enCurso : null;
-      if (!iguales && otra) {
-        setRevision({ clave: claveDeRevision, estado: "enCurso", enCurso: otra });
-        return;
+      if (!iguales) {
+        for (const otra of delDia.enCurso.filter((una) => una.id !== esEnCurso.current?.id)) {
+          const abierta = await leerEnCurso(otra.id); // eslint-disable-line no-await-in-loop
+          if (!vigente) return;
+          if (abierta.error) {
+            setRevision({ clave: claveDeRevision, estado: "error" });
+            return;
+          }
+          const suyas = estadoDeEnCurso(abierta.enCurso.datos).csv.flatMap((uno) => leerCsvCatapult(uno.texto, gps.columnas).filas);
+          if (filasEnOtroCsv(leido.filas, suyas)) {
+            setRevision({ clave: claveDeRevision, estado: "enCurso", enCurso: otra });
+            return;
+          }
+        }
       }
       setRevision({ clave: claveDeRevision, estado: iguales ? "esta" : "noEsta", iguales, delDia: respuesta.total });
-    });
+    };
+    revisar();
     return () => {
       vigente = false;
     };
@@ -1688,16 +1705,13 @@ export default function CargarGps({
     }
     setProgreso({ n: desde, total: lista.length });
     if (!aMedias) {
-      const [respuesta, delDia] = await Promise.all([listarGps(equipoId, { desde: estado.fecha, hasta: estado.fecha }), enCursoDelDia(equipoId, estado.fecha)]);
+      // Las otras cargas sin terminar de ese día ya no frenan (Santiago,
+      // 23/10: varias por día; la del mismo CSV se frena al leerlo).
+      const respuesta = await listarGps(equipoId, { desde: estado.fecha, hasta: estado.fecha });
       if (!enPantalla.current) return;
-      if (respuesta.error || delDia.error || filasYaEnLaBase(leido?.filas || [], respuesta.filas)) {
+      if (respuesta.error || filasYaEnLaBase(leido?.filas || [], respuesta.filas)) {
         setProgreso(null);
-        setFalla(respuesta.error || delDia.error ? "gps.cargar.noSeRevisoBase" : "gps.cargar.yaEstaAlGuardar");
-        return;
-      }
-      if (delDia.enCurso && delDia.enCurso.id !== deEnCurso?.id) {
-        setProgreso(null);
-        setFalla("gps.enCurso.yaEnCurso");
+        setFalla(respuesta.error ? "gps.cargar.noSeRevisoBase" : "gps.cargar.yaEstaAlGuardar");
         return;
       }
       const otras = reemplazar ? [] : filasDeLaMismaSesion(quedan, respuesta.filas, estado.dispositivo);

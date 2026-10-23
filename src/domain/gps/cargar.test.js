@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { REGLAS_CARGA, bloquesDelCsv, calcularCarga, esArquero, faltaLoObligatorio, filasDeLaMismaSesion, filasYaEnLaBase, leerCsvCatapult, limpiarNombre, llegaAlCorte, metrosPorJugador, microcicloDe, reglasDelClub, vrPartidoDeLasReglas, vrPartidoDelDispositivo, vsPartido } from "./cargar.js";
+import { REGLAS_CARGA, bloquesDelCsv, calcularCarga, esArquero, faltaLoObligatorio, filasDeLaMismaSesion, filasEnOtroCsv, filasYaEnLaBase, leerCsvCatapult, limpiarNombre, llegaAlCorte, metrosPorJugador, microcicloDe, reglasDelClub, vrPartidoDeLasReglas, vrPartidoDelDispositivo, vsPartido } from "./cargar.js";
 
 // Datos inventados: ningún nombre ni valor del club.
 
@@ -333,6 +333,12 @@ describe("¿ya está en la Base?", () => {
     expect(filasYaEnLaBase(delCsv, [])).toBe(0);
     // Los ceros (los que no ingresaron, los que no entrenaron) no cuentan.
     expect(filasYaEnLaBase([{ valores: { d: 0, tiempo: 0 } }], [{ datos: { d: 0, tiempo: 0 } }])).toBe(0);
+  });
+  // Santiago, 23/10: varias cargas sin terminar por día; la del mismo CSV se frena.
+  test("el mismo CSV en otra carga sin terminar, con la misma cuenta; otro turno no", () => {
+    expect(filasEnOtroCsv(delCsv, [{ valores: { d: 3000.1, tiempo: 900, inicio: 58000 } }])).toBe(1);
+    expect(filasEnOtroCsv(delCsv, [{ valores: { d: 5000, tiempo: 900, inicio: 70000 } }])).toBe(0);
+    expect(filasEnOtroCsv(delCsv, [])).toBe(0);
   });
 });
 

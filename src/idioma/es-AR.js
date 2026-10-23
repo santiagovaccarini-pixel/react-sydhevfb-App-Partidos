@@ -1168,7 +1168,8 @@ export default {
       dejar: "Dejar para revisar",
       dejando: "Guardando…",
       dejada: "Quedó en «Sin terminar»: seguila desde Cargar, en este aparato o en otro.",
-      enCursoDelDia: "Ya hay una carga en curso del {{fecha}} (la dejó {{quien}} el {{cuando}}). Seguila desde «Sin terminar», en Cargar.",
+      // Varias por día (Santiago, 23/10); la del mismo CSV se frena y avisa.
+      enCursoDelDia: "Ese CSV ya está en una carga sin terminar del {{fecha}} (la dejó {{quien}} el {{cuando}}). Seguila desde «Sin terminar», en Cargar.",
       yaEnCurso: "Ya hay una carga en curso de ese día. Seguila desde «Sin terminar», en Cargar.",
       otroAparato: "La siguieron desde otro aparato y lo que hiciste acá no se guardó.",
       abrirUltima: "Abrir la última",

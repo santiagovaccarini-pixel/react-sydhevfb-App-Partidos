@@ -15,7 +15,7 @@ import {
   claveDeErrorGps,
   crearFilasGps,
   dejarEnCurso,
-  enCursoDelDia,
+  enCursosDelDia,
   guardarCabeceraGps,
   guardarDiaGps,
   pegarFilasGps,
@@ -629,15 +629,17 @@ describe("las cargas sin terminar (GPS › Cargar)", () => {
     expect(doble.llamadas).toEqual([]);
   });
 
-  test("la de un día, para no empezar otra", async () => {
-    doble.respuestas = [{ data: [una], error: null }];
-    expect((await enCursoDelDia("eq-1", "2026-10-12")).enCurso).toEqual(una);
+  // Santiago, 23/10: varias por día (la del mismo CSV la frena la app).
+  test("las de un día, todas, la más nueva primero", async () => {
+    const otra = { ...una, id: "ec2", paso: 0 };
+    doble.respuestas = [{ data: [una, otra], error: null }];
+    expect((await enCursosDelDia("eq-1", "2026-10-12")).enCurso).toEqual([una, otra]);
     expect(doble.llamadas).toContainEqual(["eq", "fecha", "2026-10-12"]);
     doble.respuestas = [{ data: [], error: null }];
-    expect(await enCursoDelDia("eq-1", "2026-10-11")).toEqual({ enCurso: null, error: "" });
+    expect(await enCursosDelDia("eq-1", "2026-10-11")).toEqual({ enCurso: [], error: "" });
     // Sin fecha, ni pregunta.
     doble.llamadas.length = 0;
-    expect(await enCursoDelDia("eq-1", "")).toEqual({ enCurso: null, error: "" });
+    expect(await enCursosDelDia("eq-1", "")).toEqual({ enCurso: [], error: "" });
     expect(doble.llamadas).toEqual([]);
   });
 
