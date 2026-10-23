@@ -217,9 +217,6 @@ export default {
     gpsTitulo: "GPS",
     gpsTexto: "Lo que mide el GPS en cada tarea y en cada partido, con un informe del equipo y colores que muestran quién está por arriba o por abajo del promedio.",
   },
-  // El consentimiento de los atletas (20261103): el club lo confirma una vez
-  // (el administrador) y, al cargar un archivo, las personas que no están en
-  // Datos básicos.
   // Exportar todos los datos de un atleta (20261104): Datos básicos › Ver ficha.
   exportar: {
     ficha: "Lo que el atleta le pide al club sobre sus datos.",
@@ -273,29 +270,6 @@ export default {
       soloAdmin: "Solo el administrador del club exporta los datos de un atleta.",
       faltaMigracion: "Falta una actualización de la base de datos para exportar. Avisale a quien administra la app.",
       noSe: "No se pudieron preparar los datos. Probá de nuevo.",
-    },
-  },
-  consentimiento: {
-    titulo: "Consentimiento de los atletas",
-    avisoAdmin: "Antes de cargar datos nuevos de jugadores, lesiones, evaluaciones o GPS, el club tiene que confirmar que tiene el consentimiento de sus atletas. Lo confirmás vos, una sola vez.",
-    avisoStaff: "Antes de cargar datos nuevos de jugadores, lesiones, evaluaciones o GPS, el administrador del club tiene que confirmar que el club tiene el consentimiento de sus atletas. Avisale.",
-    confirmar: "Confirmar",
-    declaracion: "Confirmo, en nombre de {{club}}, que el club tiene el consentimiento de cada atleta (o el de su madre, padre o tutor, si es menor de edad) para cargar y usar sus datos en esta app, incluidos los de salud. El club guarda esos consentimientos firmados.",
-    confirmo: "Confirmo",
-    ahoraNo: "Ahora no",
-    listo: "Listo: el consentimiento de los atletas quedó confirmado.",
-    personas: {
-      titulo: "Personas fuera de Datos básicos",
-      texto_one: "Lo que vas a cargar tiene 1 persona que no está en Datos básicos. Para cargarla, confirmá que el club tiene su consentimiento (o el de su madre, padre o tutor, si es menor de edad).",
-      texto_other: "Lo que vas a cargar tiene {{n}} personas que no están en Datos básicos. Para cargarlas, confirmá que el club tiene su consentimiento (o el de su madre, padre o tutor, si es menor de edad).",
-      lista: "Personas a confirmar",
-      confirmar: "Confirmo y cargo",
-    },
-    error: {
-      club: "Falta que el administrador del club confirme el consentimiento de los atletas, en la pantalla principal. Hasta entonces no se cargan datos nuevos.",
-      persona: "Falta confirmar el consentimiento de una persona que no está en Datos básicos. Volvé a cargar y confirmalo.",
-      noLeer: "No se pudo comprobar el consentimiento de los atletas.",
-      noGuardar: "No se pudo guardar la confirmación. Probá de nuevo.",
     },
   },
   evaluaciones: {
@@ -576,7 +550,6 @@ export default {
       borradas_other: "{{n}} cambios no subieron: esas filas las borró otra persona.",
       // Paso 3c.2b: «Cargar un día» sin señal (Santiago, 23/10).
       chip: "Espera para subir",
-      personasConSenal: "Sin señal no se guardan personas que no están en Datos básicos: su consentimiento se confirma con señal. Tocá «Dejar para revisar» y guardalo cuando vuelva la señal.",
       subiendoAhora: "Se está subiendo lo hecho sin señal: probá en un momento.",
       mismoDia: "Lo cargado sin señal sube junto: la fecha y el dispositivo se cambian después de que suba.",
       diaEnElAparato_one: "Sin señal: {{n}} fila del {{fecha}} quedó en este aparato y se sube sola cuando vuelva la señal.",
@@ -591,7 +564,6 @@ export default {
       enEsperaRevisar: "Estas son las filas del {{fecha}} que ya estaban y, en otro color, las que cargaste sin señal: esperan.",
       subirLoQueEspera: "Subir lo que espera",
       // Paso 3c.3: «Pegar desde una planilla» sin señal (Santiago, 23/10).
-      personasConSenalPegado: "Sin señal no se cargan personas que no están en Datos básicos: su consentimiento se confirma con señal. Elegí quién es cada una (o «No cargar sus filas»), o pegalo cuando vuelva la señal.",
       pegadasEnElAparato_one: "Sin señal: {{n}} fila pegada quedó en este aparato y se sube sola cuando vuelva la señal.",
       pegadasEnElAparato_other: "Sin señal: {{n}} filas pegadas quedaron en este aparato y se suben solas cuando vuelva la señal.",
       pegadasYaEstaban_one: "{{n}} fila pegada sin señal ya estaba en la Base: no se cargó de nuevo.",

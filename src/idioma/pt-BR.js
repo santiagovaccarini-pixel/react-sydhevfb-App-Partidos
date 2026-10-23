@@ -213,7 +213,6 @@ export default {
     gpsTitulo: "GPS",
     gpsTexto: "O que o GPS mede em cada tarefa e em cada jogo, com um relatório do time e cores que mostram quem está acima ou abaixo da média.",
   },
-  // O consentimento dos atletas (20261103).
   // Exportar todos os dados de um atleta (20261104).
   exportar: {
     ficha: "O que o atleta pede ao clube sobre os seus dados.",
@@ -267,29 +266,6 @@ export default {
       soloAdmin: "Só o administrador do clube exporta os dados de um atleta.",
       faltaMigracion: "Falta uma atualização do banco de dados para exportar. Avise quem administra o app.",
       noSe: "Não foi possível preparar os dados. Tente de novo.",
-    },
-  },
-  consentimiento: {
-    titulo: "Consentimento dos atletas",
-    avisoAdmin: "Antes de carregar dados novos de jogadores, lesões, avaliações ou GPS, o clube precisa confirmar que tem o consentimento dos seus atletas. Você confirma uma única vez.",
-    avisoStaff: "Antes de carregar dados novos de jogadores, lesões, avaliações ou GPS, o administrador do clube precisa confirmar que o clube tem o consentimento dos seus atletas. Avise-o.",
-    confirmar: "Confirmar",
-    declaracion: "Confirmo, em nome de {{club}}, que o clube tem o consentimento de cada atleta (ou o da mãe, do pai ou do responsável, se for menor de idade) para carregar e usar os seus dados neste app, incluídos os de saúde. O clube guarda esses consentimentos assinados.",
-    confirmo: "Confirmo",
-    ahoraNo: "Agora não",
-    listo: "Pronto: o consentimento dos atletas ficou confirmado.",
-    personas: {
-      titulo: "Pessoas fora de Dados básicos",
-      texto_one: "O que você vai carregar tem 1 pessoa que não está em Dados básicos. Para carregá-la, confirme que o clube tem o consentimento dela (ou o da mãe, do pai ou do responsável, se for menor de idade).",
-      texto_other: "O que você vai carregar tem {{n}} pessoas que não estão em Dados básicos. Para carregá-las, confirme que o clube tem o consentimento delas (ou o da mãe, do pai ou do responsável, se forem menores de idade).",
-      lista: "Pessoas a confirmar",
-      confirmar: "Confirmo e carrego",
-    },
-    error: {
-      club: "Falta o administrador do clube confirmar o consentimento dos atletas, na tela principal. Até lá, não se carregam dados novos.",
-      persona: "Falta confirmar o consentimento de uma pessoa que não está em Dados básicos. Carregue de novo e confirme.",
-      noLeer: "Não foi possível verificar o consentimento dos atletas.",
-      noGuardar: "Não foi possível salvar a confirmação. Tente de novo.",
     },
   },
   evaluaciones: {
@@ -557,7 +533,6 @@ export default {
       borradas_one: "{{n}} mudança não subiu: essa linha foi apagada por outra pessoa.",
       borradas_other: "{{n}} mudanças não subiram: essas linhas foram apagadas por outra pessoa.",
       chip: "Espera para subir",
-      personasConSenal: "Sem sinal não se salvam pessoas que não estão em Dados básicos: o consentimento delas se confirma com sinal. Toque em «Deixar para revisar» e salve quando o sinal voltar.",
       subiendoAhora: "O que foi feito sem sinal está subindo: tente em um instante.",
       mismoDia: "O registrado sem sinal sobe junto: a data e o dispositivo se mudam depois que subir.",
       diaEnElAparato_one: "Sem sinal: {{n}} linha de {{fecha}} ficou neste aparelho e sobe sozinha quando o sinal voltar.",
@@ -571,7 +546,6 @@ export default {
       queHace: "«Substituir e carregar» apaga essas linhas e a média da equipe desse dia com {{dispositivo}}, e salva as suas (o apagado fica no histórico). «Ir para a Base» deixa as suas esperando, em outra cor, para você revisar essas linhas.",
       enEsperaRevisar: "Estas são as linhas de {{fecha}} que já estavam e, em outra cor, as que você registrou sem sinal: estão esperando.",
       subirLoQueEspera: "Subir o que espera",
-      personasConSenalPegado: "Sem sinal não se registram pessoas que não estão em Dados básicos: o consentimento delas se confirma com sinal. Escolha quem é cada uma (ou «Não carregar as linhas»), ou cole quando o sinal voltar.",
       pegadasEnElAparato_one: "Sem sinal: {{n}} linha colada ficou neste aparelho e sobe sozinha quando o sinal voltar.",
       pegadasEnElAparato_other: "Sem sinal: {{n}} linhas coladas ficaram neste aparelho e sobem sozinhas quando o sinal voltar.",
       pegadasYaEstaban_one: "{{n}} linha colada sem sinal já estava na Base: não foi registrada de novo.",

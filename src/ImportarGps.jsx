@@ -336,11 +336,6 @@ export default function ImportarGps({
     setAlAparatoAntes(0);
     const alAparato = () => {
       setProgreso(null);
-      // Su consentimiento se confirma con señal.
-      if (lista.some(({ fila }) => !fila.jugador_id && !fila.promedio && String(fila.persona ?? "").trim())) {
-        setFalla("gps.espera.personasConSenalPegado");
-        return;
-      }
       delAparato.alPegar({ dispositivo, filas: lista.map((fila) => fila.fila), reemplazar });
       // Lo que quedó en el aparato ya cuenta como "Ya está en la app".
       setExistentes((previas) => [...(previas || []), ...lista.map((fila) => fila.fila)]);

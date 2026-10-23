@@ -1097,25 +1097,14 @@
   color: #f0c978;
 }
 
-/* El consentimiento de los atletas (20261103): el mismo aviso dorado, en la
-   pantalla principal, con el botón del administrador abajo. */
-.aviso-consentimiento {
-  gap: 6px;
-  margin: 0 0 18px;
-}
 /* Lo que espera para subir (paso 3 de «cargar sin señal…»): el mismo aviso
    dorado, con «Subir ahora» abajo. */
 .aviso-espera {
   gap: 6px;
 }
-.aviso-espera .cuenta-autorizar,
-.aviso-consentimiento .cuenta-autorizar {
+.aviso-espera .cuenta-autorizar {
   justify-self: start;
   margin-top: 4px;
-}
-.aviso-consentimiento-error {
-  color: #ffb3b3;
-  font-weight: 700;
 }
 .portal-club-hasta {
   padding: 2px 8px;

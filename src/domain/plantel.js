@@ -1,6 +1,5 @@
 import { supabase } from "../supabase.js";
 import { esSoloLectura, leerAlDia } from "./alDia.js";
-import { claveDeErrorConsentimiento } from "./consentimiento.js";
 import jugadoresDelCodigo from "../jugadores";
 
 export const CLAVE_PLANTEL = "plantel_jugadores";
@@ -210,9 +209,6 @@ export const agregarJugador = async (nombre, equipoId = null) => {
 
   if (error) {
     const repetido = /duplicate key|unique/i.test(error.message || "");
-    // Sin la confirmación del consentimiento (20261103).
-    const sinConsentimiento = claveDeErrorConsentimiento(error);
-    if (sinConsentimiento) return { error: sinConsentimiento };
     return repetido ? { error: "datos.error.repetido" } : { error: "datos.error.guardar", detalle: error.message || "" };
   }
 
