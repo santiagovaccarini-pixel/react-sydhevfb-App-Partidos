@@ -4762,6 +4762,23 @@ confirme.**
     - **Lo que sigue de la nota:** Datos básicos sin señal (la última parte del paso 3) y después
       el paso 4 (Partido compartido entre celulares; Entrenamiento, al final), cada uno
       confirmado en un cuestionario antes de empezar.
+  - **Hecho, paso 3d (23/10, 2026.10.23.7; UI-080): Datos básicos sin señal, solo para mirar.**
+    Santiago, en un cuestionario: lo de los V.R. de GPS «Sí, está bien» y, para Datos básicos,
+    «Solo mirar» (entre «Ver y cambiar datos» y «Todo, también agregar y borrar»). Como el paso
+    1 en las otras bases: con señal, lo que se ve (los jugadores con sus datos, los nombres de
+    las columnas y las listas) queda en la copia de este aparato (`copiaSinSenal.js`, base
+    «datos»); sin señal se abre con ella y el aviso de siempre, y no se cambia nada (ni la tabla,
+    ni Posiciones, ni Ajustes; sin agregar, pegar, borrar ni la ficha). Sin copia, «No hay
+    conexión» y tampoco se cambia nada. Al volver la señal, lo de la base. La copia no se guarda
+    con lo que no llegó (el plantel de respaldo, que trae solo los nombres). Se borra como las
+    otras y, además, cuando la cuenta se queda sin ningún módulo del club. Sin SQL nuevo.
+    - **Con esto queda hecho el paso 3** (Evaluaciones, Lesiones, GPS y Datos básicos).
+    - **Límite conocido:** si se corta la señal con la pantalla abierta, se sigue viendo lo
+      último que llegó (con «No hay conexión»); la copia se usa al abrirla sin señal.
+    - **Queda prohibido** cambiar, agregar o borrar en Datos básicos sin señal, salvo un pedido
+      nuevo.
+    - **Lo que sigue de la nota:** el paso 4 (Partido compartido entre celulares; Entrenamiento,
+      al final), confirmado en un cuestionario antes de empezar.
 - **Lo que sigue, en este orden**: borrar del todo a un atleta (derecho al olvido); el cambio de
   nombre de un jugador con los partidos de antes (ver «Exportar los datos de un atleta», falla
   conocida; arreglada el 20/10); después, las grandes, cada una aparte (la planilla de valor

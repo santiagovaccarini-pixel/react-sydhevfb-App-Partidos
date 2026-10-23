@@ -6,6 +6,7 @@ import { EscudoDeClub } from "./components/ClubCrest";
 import { HojaConfirmar } from "./components/ConfirmSheet.js";
 import { TablaDatos } from "./components/TablaDatos.jsx";
 import { AvisoSoloLectura } from "./components/SoloLectura.jsx";
+import { AvisoSinSenal, falloDeRed, sinSenalAhora, useSinSenal } from "./components/SinSenal.jsx";
 import ImportarJugadores from "./ImportarJugadores.jsx";
 import { PosicionesJugadores } from "./components/PosicionesPartido.jsx";
 import AjustesDatosBasicos from "./AjustesDatosBasicos.jsx";
@@ -39,6 +40,10 @@ import "./lesiones.css";
 // (ImportarJugadores.jsx). Además, dónde juega cada uno en Partido
 // (Posiciones) y, en Ajustes, el nombre de cada columna, las listas y su
 // dispositivo de Catapult para Flujo diario (AjustesDatosBasicos.jsx).
+// Sin señal, solo para mirar (paso 3 de «cargar sin señal y a la vez que otra
+// persona»; Santiago, 23/10, en un cuestionario: «Solo mirar»): con señal,
+// lo que se ve queda en la copia de este aparato y, sin señal, se abre con
+// ella, con el aviso de siempre; no se cambia nada (todo, con señal).
 
 export const DESTINOS_DATOS = [
   { id: "jugadores", etiqueta: "Jugadores", icono: "usuario" },
@@ -115,6 +120,12 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
   // La ficha del jugador elegido (solo el administrador): exportar sus datos.
   const [ficha, setFicha] = useState(null);
   const [importando, setImportando] = useState(false);
+  const [enLinea, setEnLinea] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine !== false));
+  // Sin señal, lo que se ve es la copia de este aparato ({ guardadaEn }).
+  const [deLaCopia, setDeLaCopia] = useState(null);
+  // Lo que no llegó de la base (el plantel de respaldo, sin sus datos, o los
+  // Ajustes sin señal): eso no va a la copia.
+  const [sinLeer, setSinLeer] = useState(false);
 
   const equipoId = equipo?.id || null;
   // Quien ya se fue del club ve a los jugadores de entonces y no cambia nada.
@@ -122,7 +133,14 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
   // cambia nada (Santiago, 17/10).
   const seFue = Boolean(equipo?.hasta);
   const mirar = soloParaMirar(equipo, "datos");
-  const soloLectura = seFue || mirar;
+  // Sin señal, solo para mirar.
+  const sinConexion = Boolean(deLaCopia) || !enLinea;
+  const soloLectura = seFue || mirar || sinConexion;
+  // La copia para verla sin señal (como Lesiones, Evaluaciones y GPS, «Automática
+  // en todos, sin botón»). Quien ya se fue no guarda copia.
+  const sinSenal = useSinSenal("datos", equipoId, { deshabilitado: seFue });
+  const leerCopia = useRef(sinSenal.leer);
+  leerCopia.current = sinSenal.leer;
   // Las lesiones solo se cambian con Lesiones con Edición; las evaluaciones,
   // con Evaluaciones con Edición.
   const editaLesiones = !soloParaMirar(equipo, "lesiones");
@@ -146,6 +164,21 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
   // silencioso: lo nuevo de otros (useEnVivo), sin "Cargando…"; si no se pudo
   // leer, queda lo que se veía.
   const cargar = useCallback(async ({ silencioso = false } = {}) => {
+    // Sin señal, la copia de este aparato; si no hay, como siempre (con el
+    // aviso de que no hay conexión).
+    const conLaCopia = async () => {
+      const copia = await leerCopia.current();
+      if (!copia) return false;
+      const { datos } = copia;
+      setPlantel(Array.isArray(datos.plantel) ? datos.plantel : []);
+      setConfig(datos.config || null);
+      setColumnasDatos(datos.columnas || {});
+      setDeLaCopia({ guardadaEn: copia.guardadaEn });
+      setError("");
+      setCargando(false);
+      return true;
+    };
+    if (sinSenalAhora() && (await conLaCopia())) return;
     if (!silencioso) {
       setCargando(true);
       setError("");
@@ -156,12 +189,17 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
       leerLesionesPorJugador(equipoId),
       leerEvaluacionesPorJugador(equipoId),
     ]);
+    // Se cortó la señal en el camino: la copia, si hay.
+    const sinRed = falloDeRed(respuestaConfig) || (respuestaPlantel.deRespaldo && sinSenalAhora());
+    if (sinRed && (await conLaCopia())) return;
     if (!respuestaLesiones.error) setLesionesDe(respuestaLesiones.porJugador);
     if (!respuestaEvaluaciones.error) setEvaluacionesDe(respuestaEvaluaciones.porJugador);
     if (silencioso) {
       if (!respuestaPlantel.error && !respuestaPlantel.deRespaldo) setPlantel(respuestaPlantel.plantel || []);
       return;
     }
+    setDeLaCopia(null);
+    setSinLeer(Boolean(respuestaPlantel.error || respuestaPlantel.deRespaldo || sinRed));
     setPlantel(respuestaPlantel.plantel || []);
     // Sin las tablas de Lesiones todavía, valen los textos del Excel.
     setConfig(respuestaConfig.error ? null : respuestaConfig.config);
@@ -176,6 +214,30 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
 
   // Lo que carga o cambia otra persona aparece solo (Santiago, 11/10).
   useEnVivo({ nombre: "datos", tablas: ["jugadores"], equipoId, activo: !seFue, alCambiar: () => cargar({ silencioso: true }) });
+
+  useEffect(() => {
+    const alCambiar = () => setEnLinea(navigator.onLine !== false);
+    window.addEventListener("online", alCambiar);
+    window.addEventListener("offline", alCambiar);
+    return () => {
+      window.removeEventListener("online", alCambiar);
+      window.removeEventListener("offline", alCambiar);
+    };
+  }, []);
+
+  // Vuelve la señal mientras se ve la copia (o lo que no llegó): lo de la
+  // base, al día.
+  useEffect(() => {
+    if (enLinea && (deLaCopia || sinLeer)) cargar();
+  }, [enLinea]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Lo que se ve (al día, con señal) queda en la copia de este aparato, un
+  // rato después de cada cambio.
+  useEffect(() => {
+    if (!sinSenal.activo || deLaCopia || cargando || error || sinLeer || !equipoId) return undefined;
+    const temporizador = setTimeout(() => sinSenal.guardar({ plantel, config, columnas: columnasDatos }), 1500);
+    return () => clearTimeout(temporizador);
+  }, [sinSenal.activo, sinSenal.guardar, deLaCopia, cargando, error, sinLeer, equipoId, plantel, config, columnasDatos]);
 
   useEffect(() => {
     if (!aviso) return undefined;
@@ -528,7 +590,11 @@ export default function DatosBasicos({ onVolver, permisos = null }) {
     else setAviso(elegidos.length === 1 ? t("datos.borrado") : t("datos.borrados", { n: borrados.length }));
   };
 
-  const estado = error ? (
+  const estado = deLaCopia ? (
+    <AvisoSinSenal guardadaEn={deLaCopia.guardadaEn} />
+  ) : !enLinea ? (
+    <p className="lesiones-estado">{t("comun.sinConexion")}</p>
+  ) : error ? (
     <div className="lesiones-estado error">
       {t(error)}{" "}
       <button type="button" onClick={cargar}>

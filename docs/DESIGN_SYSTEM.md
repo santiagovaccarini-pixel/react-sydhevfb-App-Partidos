@@ -59,8 +59,9 @@ La regla existente es que lo igual en otro módulo sea igual en toda la web
 - `src/components/ClubCrest.js` y `BotonVolver.jsx`: escudos y regreso.
 - `src/components/BotonModulos.jsx`: volver a los módulos desde el encabezado, fijo arriba al
   bajar (UI-051).
-- `src/components/SinSenal.jsx`: ver una base sin señal, igual en Lesiones, Evaluaciones y GPS:
-  la copia del aparato, que se guarda sola, y el aviso de la copia (UI-065 a UI-067). En una
+- `src/components/SinSenal.jsx`: ver una base sin señal, igual en Lesiones, Evaluaciones, GPS y
+  Datos básicos: la copia del aparato, que se guarda sola, y el aviso de la copia (UI-065 a
+  UI-067; Datos básicos, solo para mirar, UI-080). En una
   base que deja cargar sin señal, `AvisoDeEspera`: el aviso dorado con cuántos cambios esperan
   para subir y, con señal, «Subir ahora» (UI-072); la cola, en `domain/filaDeEspera.js`. En
   las tarjetas de Nuevos casos de Lesiones, lo que espera va en dorado claro con la pastilla
