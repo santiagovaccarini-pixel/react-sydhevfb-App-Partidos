@@ -94,6 +94,24 @@ export const zonaConMas = (zonas) => {
   return mejor ? claveDeZona(mejor.zona) : "";
 };
 
+// Los días perdidos de cada tipo de lesión, de más a menos (Santiago, 24/10:
+// «uno de barras horizontales que te muestre las lesiones donde se perdieron
+// más días»; en cuestionario, «Cada tipo de lesión» y «Las 5 con más días»):
+// [{ codigo, dias, cantidad }]. A igual días, el de más lesiones.
+export const diasPorTipo = (lesiones, hoy) => {
+  const cuentas = new Map();
+  (lesiones || []).forEach((lesion) => {
+    const codigo = lesion?.datos?.tipo_lesion;
+    if (!codigo) return;
+    const ya = cuentas.get(codigo) || { codigo, dias: 0, cantidad: 0 };
+    ya.dias += diasPerdidos(lesion, hoy);
+    ya.cantidad += 1;
+    cuentas.set(codigo, ya);
+  });
+  return [...cuentas.values()].sort((a, b) => b.dias - a.dias || b.cantidad - a.cantidad);
+};
+export const TIPOS_EN_LAS_BARRAS = 5;
+
 // Lo más afectado de una zona: lo más preciso que se cargó de cada lesión
 // (el músculo específico, el ligamento o el músculo; en una parte sin nada
 // de eso, no cuenta), de más a menos: [{ campo, codigo, cantidad }].

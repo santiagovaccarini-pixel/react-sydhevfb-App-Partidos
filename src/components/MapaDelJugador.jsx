@@ -2,7 +2,7 @@ import React, { useId, useState } from "react";
 import cuerpoDeFrente from "../assets/cuerpo-lesiones-frente.webp";
 import cuerpoDeEspaldas from "../assets/cuerpo-lesiones-espalda.webp";
 import { colorDeCalor } from "./CuerpoConCalor.jsx";
-import { claveDeZona, estructuraDe, familiaDeTipo, ladoDeLesion, masAfectadosDe, resumenDelMapa, zonaConMas, zonaPorClave } from "./mapaDelJugador.js";
+import { TIPOS_EN_LAS_BARRAS, claveDeZona, diasPorTipo, estructuraDe, familiaDeTipo, ladoDeLesion, masAfectadosDe, resumenDelMapa, zonaConMas, zonaPorClave } from "./mapaDelJugador.js";
 import { TAMANO, ZONAS, paresDe, puntosDe, tieneLado } from "./zonasDeLaFigura.js";
 import { conAltaHoy, esFechaISO } from "../domain/lesiones.js";
 import { PERIODOS, diasPerdidos, lesionesDelReporte, periodoDe } from "../domain/reportes.js";
@@ -27,6 +27,7 @@ const LADOS = ["direito", "esquerdo"];
 // naranja, articular en amarillo, otras en gris; la ósea, violeta).
 const COLOR_FAMILIA = { muscular: "#ef4444", tendinosa: "#f97316", articular: "#facc15", osea: "#a78bfa", otras: "#94a3b8" };
 const DIFUSO = 9;
+const PLUMA = 7;
 
 // Un id que sirve adentro de url(#…).
 const useIdLimpio = () => `mapa-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
@@ -66,17 +67,19 @@ const cajaDe = (zona, datos) => {
   return { vista, x, y, ancho: tam, alto: tam };
 };
 
-// Una vista del cuerpo: la figura, el calor de cada zona (difuso, recortado a
-// su forma y a la figura), el borde de la zona elegida y, si se puede tocar,
-// las zonas encima. caja: la parte que se ve (para agrandar una zona).
-const Vista = ({ vista, resumen, elegida, tope, caja = null, toques = null, titulo = "" }) => {
+// Una vista del cuerpo: la figura, el calor de cada zona y, si se puede
+// tocar, las zonas encima (invisibles). caja: la parte que se ve (para
+// agrandar una zona). Para que el calor no se vea dibujado (Santiago, 24/10:
+// «todavía se ven como si estuvieran dibujadas»), cada zona se esfuma hacia
+// sus bordes en vez de cortarse en línea recta, el centro tiene el color de su
+// cantidad y se va aclarando hacia el amarillo, como en la foto, y no lleva
+// borde (la zona elegida se ve en el detalle).
+const Vista = ({ vista, resumen, tope, caja = null, toques = null, titulo = "" }) => {
   const id = useIdLimpio();
   const { ancho, alto } = TAMANO[vista];
   const pintadas = [...resumen.zonas.values()].flatMap((datos) => pintadasDe(datos, vista).map((una) => ({ ...una, clave: claveDeZona(datos.zona) })));
   // Las de menos lesiones primero: la más intensa queda arriba.
   pintadas.sort((a, b) => a.cantidad - b.cantidad);
-  const zonaElegida = zonaPorClave(elegida);
-  const bordes = zonaElegida ? formasDe(zonaElegida, vista) : [];
   return (
     <svg
       className="mapa-jugador-svg"
@@ -93,16 +96,21 @@ const Vista = ({ vista, resumen, elegida, tope, caja = null, toques = null, titu
         <mask id={`${id}-figura`} maskUnits="userSpaceOnUse" x={0} y={0} width={ancho} height={alto} style={{ maskType: "alpha" }}>
           <image href={IMAGEN[vista]} width={ancho} height={alto} />
         </mask>
+        {/* El borde de cada zona, esfumado. */}
+        <filter id={`${id}-pluma`} x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation={PLUMA} />
+        </filter>
         {pintadas.map((una, indice) => (
           <React.Fragment key={indice}>
-            <clipPath id={`${id}-forma-${indice}`}>
-              <polygon points={puntosDe(vista, una.forma, una.lado)} />
-            </clipPath>
-            {/* Como calor: más fuerte en el medio de la zona y suave hacia los bordes. */}
-            <radialGradient id={`${id}-brillo-${indice}`} cx="50%" cy="50%" r="62%">
-              <stop offset="0%" stopColor={colorDeCalor(una.cantidad, tope)} stopOpacity={1} />
-              <stop offset="55%" stopColor={colorDeCalor(una.cantidad, tope)} stopOpacity={0.8} />
-              <stop offset="100%" stopColor={colorDeCalor(una.cantidad, tope)} stopOpacity={0.15} />
+            <mask id={`${id}-forma-${indice}`} maskUnits="userSpaceOnUse" x={0} y={0} width={ancho} height={alto}>
+              <polygon points={puntosDe(vista, una.forma, una.lado)} fill="#fff" filter={`url(#${id}-pluma)`} />
+            </mask>
+            {/* Como calor: el color de su cantidad en el medio y hacia los bordes, amarillo y cada vez más suave. */}
+            <radialGradient id={`${id}-brillo-${indice}`} cx="50%" cy="50%" r="58%">
+              <stop offset="0%" stopColor={colorDeCalor(una.cantidad, tope)} stopOpacity={0.95} />
+              <stop offset="45%" stopColor={colorDeCalor(una.cantidad, tope)} stopOpacity={0.85} />
+              <stop offset="80%" stopColor={colorDeCalor(1, tope)} stopOpacity={0.55} />
+              <stop offset="100%" stopColor={colorDeCalor(1, tope)} stopOpacity={0} />
             </radialGradient>
           </React.Fragment>
         ))}
@@ -111,15 +119,9 @@ const Vista = ({ vista, resumen, elegida, tope, caja = null, toques = null, titu
       {/* Mezclado con la figura (el grupo entero: la máscara lo aísla): se sigue viendo el relieve. */}
       <g className="mapa-jugador-calores" mask={`url(#${id}-figura)`}>
         {pintadas.map((una, indice) => (
-          <g key={`${una.clave}-${una.forma}-${una.lado}`} className="mapa-jugador-calor" data-zona={una.clave} data-cantidad={una.cantidad} clipPath={`url(#${id}-forma-${indice})`}>
+          <g key={`${una.clave}-${una.forma}-${una.lado}`} className="mapa-jugador-calor" data-zona={una.clave} data-cantidad={una.cantidad} mask={`url(#${id}-forma-${indice})`}>
             <polygon points={puntosDe(vista, una.forma, una.lado)} fill={`url(#${id}-brillo-${indice})`} filter={`url(#${id}-difuso)`} />
           </g>
-        ))}
-      </g>
-      {/* El borde de la zona elegida, sin salir de la figura. */}
-      <g mask={`url(#${id}-figura)`}>
-        {bordes.map(({ forma, lado }) => (
-          <polygon key={`${forma}-${lado}`} className="mapa-jugador-borde" points={puntosDe(vista, forma, lado)} />
         ))}
       </g>
       {toques && toques.filter((toque) => toque.vista === vista).map((toque) => <Toque key={toque.clave} toque={toque} />)}
@@ -246,6 +248,7 @@ export default function MapaDelJugador({ lesiones, hoy, textoDeOpcion }) {
   const historial = datos ? [...datos.lesiones].sort((a, b) => String(b.fecha_lesion).localeCompare(String(a.fecha_lesion))) : [];
   const masAfectados = datos ? masAfectadosDe(datos.lesiones).slice(0, 4) : [];
   const caja = zona ? cajaDe(zona, datos) : null;
+  const diasDeCadaTipo = diasPorTipo(delPeriodo, hoy).slice(0, TIPOS_EN_LAS_BARRAS);
 
   return (
     <section className="mapa-jugador" aria-label={titulo}>
@@ -255,28 +258,31 @@ export default function MapaDelJugador({ lesiones, hoy, textoDeOpcion }) {
           <p className="no-imprimir">{t("lesiones.reportes.mapaJugador.tocar")}</p>
         </div>
         <div className="mapa-jugador-periodo">
-          <label className="no-imprimir">
-            <span>{t("lesiones.reportes.periodo")}</span>
-            <select value={periodo} onChange={(evento) => elegirPeriodo(evento.target.value)}>
-              {[...PERIODOS, "medida"].map((cual) => (
-                <option key={cual} value={cual}>
-                  {t(`lesiones.reportes.periodos.${cual}`)}
-                </option>
-              ))}
-            </select>
-          </label>
-          {periodo === "medida" && (
-            <div className="mapa-jugador-fechas no-imprimir">
-              <label>
-                <span>{t("lesiones.reportes.desde")}</span>
-                <input type="date" value={desde} max={hasta} onChange={(evento) => esFechaISO(evento.target.value) && setRango({ desde: evento.target.value, hasta })} />
-              </label>
-              <label>
-                <span>{t("lesiones.reportes.hasta")}</span>
-                <input type="date" value={hasta} min={desde} onChange={(evento) => esFechaISO(evento.target.value) && setRango({ desde, hasta: evento.target.value })} />
-              </label>
-            </div>
-          )}
+          {/* El período y, con «Elegir fechas», las dos fechas: en una sola fila (Santiago, 24/10). */}
+          <div className="mapa-jugador-periodo-fila no-imprimir">
+            <label>
+              <span>{t("lesiones.reportes.periodo")}</span>
+              <select value={periodo} onChange={(evento) => elegirPeriodo(evento.target.value)}>
+                {[...PERIODOS, "medida"].map((cual) => (
+                  <option key={cual} value={cual}>
+                    {t(`lesiones.reportes.periodos.${cual}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {periodo === "medida" && (
+              <>
+                <label>
+                  <span>{t("lesiones.reportes.desde")}</span>
+                  <input type="date" value={desde} max={hasta} onChange={(evento) => esFechaISO(evento.target.value) && setRango({ desde: evento.target.value, hasta })} />
+                </label>
+                <label>
+                  <span>{t("lesiones.reportes.hasta")}</span>
+                  <input type="date" value={hasta} min={desde} onChange={(evento) => esFechaISO(evento.target.value) && setRango({ desde, hasta: evento.target.value })} />
+                </label>
+              </>
+            )}
+          </div>
           <p className="mapa-jugador-rango">{`${t(`lesiones.reportes.periodos.${periodo}`)} · ${fechaCorta(desde)} – ${fechaCorta(hasta)}`}</p>
         </div>
       </header>
@@ -285,13 +291,33 @@ export default function MapaDelJugador({ lesiones, hoy, textoDeOpcion }) {
         <aside className="mapa-jugador-tipos">
           <h3>{t("lesiones.reportes.mapaJugador.tipo")}</h3>
           {resumen.tipos.length ? <Dona tipos={resumen.tipos} titulo={t("lesiones.reportes.mapaJugador.tipo")} /> : <p className="mapa-jugador-vacio">{t("lesiones.reportes.mapaJugador.sinLesiones")}</p>}
+          {diasDeCadaTipo.length > 0 && (
+            <div className="mapa-jugador-dias-tipo">
+              <h3>{t("lesiones.reportes.mapaJugador.diasPorTipo")}</h3>
+              <ul className="mapa-jugador-dias">
+                {diasDeCadaTipo.map((tipo) => (
+                  <li key={tipo.codigo}>
+                    <span className="mapa-jugador-dias-nombre">
+                      <i style={{ background: COLOR_FAMILIA[familiaDeTipo(tipo.codigo)] }} aria-hidden="true" />
+                      {textoDeOpcion("tipo_lesion", tipo.codigo)}
+                    </span>
+                    <small>{plural("lesiones.reportes.mapaJugador.lesiones", tipo.cantidad)}</small>
+                    <i className="mapa-jugador-dias-barra" aria-hidden="true">
+                      <em style={{ width: `${diasDeCadaTipo[0].dias ? (tipo.dias / diasDeCadaTipo[0].dias) * 100 : 0}%`, background: COLOR_FAMILIA[familiaDeTipo(tipo.codigo)] }} />
+                    </i>
+                    <b>{numero(tipo.dias)}</b>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </aside>
 
         <div className="mapa-jugador-figuras">
           <div className="mapa-jugador-vistas">
             {VISTAS.map((vista) => (
               <figure key={vista} className="mapa-jugador-vista">
-                <Vista vista={vista} resumen={resumen} elegida={elegida} tope={tope} toques={toques} titulo={`${titulo} · ${t(`lesiones.reportes.vistas.${vista}`)}`} />
+                <Vista vista={vista} resumen={resumen} tope={tope} toques={toques} titulo={`${titulo} · ${t(`lesiones.reportes.vistas.${vista}`)}`} />
                 <figcaption>{t(`lesiones.reportes.vistas.${vista}`)}</figcaption>
               </figure>
             ))}
@@ -311,7 +337,7 @@ export default function MapaDelJugador({ lesiones, hoy, textoDeOpcion }) {
             <>
               <div className="mapa-jugador-zona">
                 <div className="mapa-jugador-zoom">
-                  <Vista vista={caja.vista} resumen={resumen} elegida={elegida} tope={tope} caja={caja} titulo={nombreDe(zona)} />
+                  <Vista vista={caja.vista} resumen={resumen} tope={tope} caja={caja} titulo={nombreDe(zona)} />
                 </div>
                 <div className="mapa-jugador-zona-datos">
                   <h4>{nombreDe(zona)}</h4>

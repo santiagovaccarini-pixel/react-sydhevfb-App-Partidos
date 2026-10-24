@@ -2457,6 +2457,7 @@
   --mj-texto: #f2f4f7;
   --mj-suave: #a7b0ba;
   --mj-dorado: #c6a15b;
+  --mj-cabecera: #1e2329;
   padding: 18px;
   border-radius: 14px;
   background: radial-gradient(120% 70% at 50% 0%, #1b2027 0%, var(--mj-fondo) 72%);
@@ -2505,8 +2506,16 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+/* El período y, con «Elegir fechas», las dos fechas: en una fila (24/10). */
+.lesiones-marco .mapa-jugador-periodo-fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 14px;
+}
 .lesiones-marco .mapa-jugador-periodo select,
-.lesiones-marco .mapa-jugador-fechas input {
+.lesiones-marco .mapa-jugador-periodo input {
   width: auto;
   height: 40px;
   padding: 0 12px;
@@ -2520,14 +2529,9 @@
   text-transform: none;
 }
 .lesiones-marco .mapa-jugador-periodo select:focus-visible,
-.lesiones-marco .mapa-jugador-fechas input:focus-visible {
+.lesiones-marco .mapa-jugador-periodo input:focus-visible {
   outline: 2px solid var(--mj-dorado);
   outline-offset: 2px;
-}
-.lesiones-marco .mapa-jugador-fechas {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 .lesiones-marco .mapa-jugador-rango {
   margin: 0;
@@ -2536,7 +2540,7 @@
 }
 .lesiones-marco .mapa-jugador-cuerpo {
   display: grid;
-  grid-template-columns: minmax(170px, 0.62fr) minmax(0, 1.45fr) minmax(0, 1.75fr);
+  grid-template-columns: minmax(200px, 0.78fr) minmax(0, 1.4fr) minmax(0, 1.7fr);
   grid-template-areas: "tipos figuras detalle";
   align-items: start;
   gap: 18px;
@@ -2606,22 +2610,10 @@
 .lesiones-marco .mapa-jugador-calores {
   mix-blend-mode: hard-light;
 }
-.lesiones-marco .mapa-jugador-borde {
-  fill: none;
-  stroke: var(--mj-dorado);
-  stroke-width: 1.6;
-  stroke-linejoin: round;
-  stroke-opacity: 0.85;
-  vector-effect: non-scaling-stroke;
-  pointer-events: none;
-}
 .lesiones-marco .mapa-jugador-toque {
   fill: transparent;
   cursor: pointer;
   outline: none;
-}
-.lesiones-marco .mapa-jugador-toque:hover {
-  fill: rgba(198, 161, 91, 0.14);
 }
 .lesiones-marco .mapa-jugador-toque:focus-visible {
   fill: rgba(198, 161, 91, 0.18);
@@ -2773,9 +2765,12 @@
   font-size: 13px;
 }
 .lesiones-marco .mapa-jugador-tabla th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   padding: 8px;
   border-bottom: 1px solid var(--mj-linea);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--mj-cabecera);
   color: var(--mj-suave);
   font-size: 11px;
   font-weight: 700;
@@ -2846,6 +2841,91 @@
   height: 10px;
   border-radius: 50%;
 }
+/* Debajo de la dona, los tipos con más días perdidos (Santiago, 24/10). */
+.lesiones-marco .mapa-jugador-dias-tipo {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--mj-linea);
+}
+.lesiones-marco .mapa-jugador-dias {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lesiones-marco .mapa-jugador-dias li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "nombre cuenta"
+    "barra dias";
+  align-items: center;
+  gap: 2px 8px;
+}
+.lesiones-marco .mapa-jugador-dias-nombre {
+  display: flex;
+  grid-area: nombre;
+  align-items: flex-start;
+  gap: 7px;
+  color: var(--mj-texto);
+  font-size: 13px;
+  line-height: 1.25;
+}
+.lesiones-marco .mapa-jugador-dias-nombre i {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-top: 4px;
+  border-radius: 50%;
+}
+.lesiones-marco .mapa-jugador-dias small {
+  grid-area: cuenta;
+  align-self: start;
+  padding-top: 1px;
+  color: var(--mj-suave);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.lesiones-marco .mapa-jugador-dias-barra {
+  display: block;
+  overflow: hidden;
+  grid-area: barra;
+  height: 8px;
+  margin-top: 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.lesiones-marco .mapa-jugador-dias-barra em {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+}
+.lesiones-marco .mapa-jugador-dias b {
+  grid-area: dias;
+  min-width: 30px;
+  margin-top: 4px;
+  color: var(--mj-texto);
+  font-size: 14px;
+  text-align: right;
+}
+/* El historial de la zona con su propia barra (Santiago, 24/10, «Su propia
+   barra»): el panel llega hasta la altura del cuerpo y el historial se
+   desliza adentro. */
+@media screen and (min-width: 761px) {
+  .lesiones-marco .mapa-jugador-detalle {
+    display: flex;
+    flex-direction: column;
+    align-self: stretch;
+    min-height: 460px;
+    contain: size;
+  }
+  .lesiones-marco .mapa-jugador-tabla-marco {
+    flex: 1 1 auto;
+    min-height: 120px;
+    overflow-y: auto;
+  }
+}
 @media screen and (max-width: 1100px) {
   .lesiones-marco .mapa-jugador-cuerpo {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -2867,6 +2947,21 @@
   .lesiones-marco .mapa-jugador-periodo {
     justify-items: start;
   }
+  .lesiones-marco .mapa-jugador-periodo-fila {
+    justify-content: flex-start;
+  }
+  /* En el celular no entran las tres: las dos fechas, lado a lado debajo. */
+  .lesiones-marco .mapa-jugador-periodo-fila label + label {
+    flex: 1 1 110px;
+    min-width: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+  .lesiones-marco .mapa-jugador-periodo-fila label + label input {
+    width: 100%;
+    min-width: 0;
+  }
   .lesiones-marco .mapa-jugador-cuerpo {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
@@ -2876,6 +2971,10 @@
   }
   .lesiones-marco .mapa-jugador-zona-datos h4 {
     font-size: 18px;
+  }
+  .lesiones-marco .mapa-jugador-tabla-marco {
+    max-height: 420px;
+    overflow-y: auto;
   }
   .lesiones-marco .mapa-jugador-zona {
     grid-template-columns: minmax(0, 110px) minmax(0, 1fr);
@@ -2947,6 +3046,7 @@
   }
   .lesiones-marco .mapa-jugador {
     --mj-panel: #fff;
+    --mj-cabecera: #f3f4f6;
     --mj-zoom: #f3f4f6;
     --mj-linea: #e5e7eb;
     --mj-texto: #111827;
@@ -2960,6 +3060,10 @@
   }
   .lesiones-marco .mapa-jugador-svg {
     max-height: 330px;
+  }
+  .lesiones-marco .mapa-jugador-tabla-marco {
+    max-height: none;
+    overflow: visible;
   }
   .lesiones-marco .mapa-jugador-cabecera h2 {
     font-size: 16px;

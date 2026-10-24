@@ -3650,6 +3650,10 @@ vamos una por una, a mi me gusta trabajar asi») y que se le hable **solo en cas
       (y la sombra del piso) en la sesión; las zonas las marcó Claude a mano. **Falta que confirme**:
       las zonas marcadas, y lo que no respondió (qué es una zona, los lados juntos y la dona por
       familia), que se hizo con lo recomendado.
+    - **24/10 (2026.10.24.1; UI-084):** mirando la app, Santiago pidió las barras de días perdidos
+      por tipo debajo de la dona, el período y las fechas en una fila, el historial con su propia
+      barra y un calor que no se vea dibujado. Hecho. Siguen a confirmar las zonas y lo que se hizo
+      con lo recomendado.
 
 ### Lo anotado en Notas, tercera tanda (17/10)
 
