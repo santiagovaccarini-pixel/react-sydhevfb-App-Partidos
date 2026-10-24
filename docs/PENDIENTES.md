@@ -3654,6 +3654,13 @@ vamos una por una, a mi me gusta trabajar asi») y que se le hable **solo en cas
       por tipo debajo de la dona, el período y las fechas en una fila, el historial con su propia
       barra y un calor que no se vea dibujado. Hecho. Siguen a confirmar las zonas y lo que se hizo
       con lo recomendado.
+    - **24/10 (2026.10.24.2; UI-084):** pidió que la zona se resalte al pasar el mouse («así se
+      ve que se puede cliquear»), el historial de la zona de menor a mayor por días («El historial
+      se ordena por dias perdidos»), que no quede nada escondido cuando el historial no entra
+      («Me preocupa el tema del espacio»; en cuestionario, «Que no entre todo»: «Ver todas (N)»)
+      y, en el mapa, «días de recuperación» en lugar de «días perdidos» («Solo en el mapa
+      corporal»: el resto de Lesiones sigue con «días perdidos»). Hecho. Siguen a confirmar las
+      zonas y lo que se hizo con lo recomendado.
 
 ### Lo anotado en Notas, tercera tanda (17/10)
 

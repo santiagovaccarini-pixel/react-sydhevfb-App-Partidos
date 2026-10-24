@@ -85,7 +85,7 @@ describe("los reportes con los minutos del GPS", () => {
     if (!elemento) throw new Error("no se encontró el botón");
     await act(async () => elemento.click());
   };
-  // Las barras de días perdidos por tipo: «tipo · lesiones · días».
+  // Las barras de días de recuperación por tipo: «tipo · lesiones · días».
   const barrasDeDias = (mapa) =>
     [...mapa.querySelectorAll(".mapa-jugador-dias li")].map((li) => `${li.querySelector(".mapa-jugador-dias-nombre").textContent} · ${li.querySelector("small").textContent} · ${li.querySelector("b").textContent}`);
   // Una zona del cuerpo (un polígono del SVG, que no tiene .click()).
@@ -335,17 +335,18 @@ describe("los reportes con los minutos del GPS", () => {
     expect(calor("espalda")).toEqual(["parte_cuerpo:coxa", "parte_cuerpo:joelho"]);
     // Con el teclado se llega a las zonas con lesiones, una vez cada una.
     expect([...mapa.querySelectorAll('.mapa-jugador-toque[role="button"]')].map((una) => una.getAttribute("aria-label")).sort()).toEqual(["Muslo: 1 lesión", "Rodilla: 1 lesión"]);
-    // Abre la zona con más (empatadas: la de más días perdidos).
+    // Abre la zona con más (empatadas: la de más días de recuperación).
     const detalle = () => mapa.querySelector(".mapa-jugador-detalle");
     const historial = () => [...detalle().querySelectorAll("tbody tr")].map((tr) => [...tr.querySelectorAll("td")].map((td) => td.textContent));
     expect(detalle().querySelector("h4").textContent).toBe("Muslo");
-    expect(detalle().querySelector(".mapa-jugador-cuenta").textContent).toBe("1 lesión20 días perdidos");
+    expect(detalle().querySelector(".mapa-jugador-cuenta").textContent).toBe("1 lesión20 días de recuperación");
     // El lado, debajo del músculo.
     expect(historial()).toEqual([["01/03/2026", "Lesión muscular grado 1 A", "—Derecho", "20"]]);
     expect(detalle().querySelector(".mapa-jugador-zoom svg").getAttribute("viewBox")).not.toBe("0 0 456 1011");
     // La dona: por familia.
     expect([...mapa.querySelectorAll(".mapa-jugador-dona-leyenda li")].map((li) => li.textContent)).toEqual(["Muscular50%", "Articular / ligamentaria50%"]);
-    // Debajo, los tipos con más días perdidos (Santiago, 24/10).
+    // Debajo, los tipos con más días de recuperación (Santiago, 24/10; el nombre, «días de recuperación», del mismo día).
+    expect(mapa.querySelector(".mapa-jugador-dias-tipo h3").textContent).toBe("Días de recuperación por tipo");
     expect(barrasDeDias(mapa)).toEqual(["Lesión muscular grado 1 A · 1 lesión · 20", "Esguince / lesión ligamentaria · 1 lesión · 10"]);
     // Se toca la rodilla.
     await tocarZona(mapa.querySelector('.mapa-jugador-toque[data-zona="parte_cuerpo:joelho"]'));
@@ -357,6 +358,8 @@ describe("los reportes con los minutos del GPS", () => {
     expect(detalle().querySelector("h4").textContent).toBe("Isquiotibiales");
     expect(detalle().textContent).toContain("0 lesiones");
     expect(detalle().textContent).toContain("Sin lesiones en esta zona en el período.");
+    // El historial entra: no hace falta «Ver todas».
+    expect(detalle().querySelector(".mapa-jugador-ver-todas")).toBeNull();
   });
 
   test("el mapa del individual: el músculo es la zona, lo más afectado, el lado, y el período", async () => {
@@ -373,7 +376,7 @@ describe("los reportes con los minutos del GPS", () => {
     const detalle = () => mapa.querySelector(".mapa-jugador-detalle");
     // Los isquiotibiales (3 lesiones) se abren solos; en los dos lados, cada uno con lo suyo.
     expect(detalle().querySelector("h4").textContent).toBe("Isquiotibiales");
-    expect(detalle().querySelector(".mapa-jugador-cuenta").textContent).toBe("3 lesiones45 días perdidos");
+    expect(detalle().querySelector(".mapa-jugador-cuenta").textContent).toBe("3 lesiones45 días de recuperación");
     expect([...detalle().querySelectorAll(".mapa-jugador-barras li")].map((li) => li.textContent)).toEqual(["Bíceps femoral2", "Semitendinoso1"]);
     expect([...detalle().querySelectorAll("tbody tr")].map((tr) => [...tr.querySelectorAll("td")].map((td) => td.textContent))).toEqual([
       ["25/09/2026", "Lesión muscular grado 1 A", "Bíceps femoralDerecho", "3"],
@@ -395,7 +398,7 @@ describe("los reportes con los minutos del GPS", () => {
       periodo.value = "anio";
       periodo.dispatchEvent(new Event("change", { bubbles: true }));
     });
-    expect(detalle().querySelector(".mapa-jugador-cuenta").textContent).toBe("2 lesiones15 días perdidos");
+    expect(detalle().querySelector(".mapa-jugador-cuenta").textContent).toBe("2 lesiones15 días de recuperación");
     expect(mapa.querySelector(".mapa-jugador-rango").textContent).toBe("Este año · 01/01/2026 – 02/10/2026");
     expect(barrasDeDias(mapa)[0]).toBe("Lesión muscular grado 1 A · 2 lesiones · 23");
     // «Elegir fechas»: las dos fechas, en la misma fila que el período.
@@ -404,6 +407,69 @@ describe("los reportes con los minutos del GPS", () => {
       periodo.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(mapa.querySelectorAll(".mapa-jugador-periodo-fila input[type=date]")).toHaveLength(2);
+  });
+
+  test("el mapa del individual: el historial de menos a más días de recuperación, «Ver todas» si no entra y la zona resaltada con el mouse", async () => {
+    const isquios = (numero, fecha_lesion, fecha_alta) => ({ id: `les-${numero}`, jugador_id: 7, numero_caso: numero, fecha_lesion, fecha_alta, datos: { parte_cuerpo: "coxa", lado: "direito", musculo: "isquiotibiais", tipo_lesion: "muscular_1a", ...DEL_CUADRO } });
+    const conMuchas = [
+      ...LESIONES,
+      isquios(10, "2026-01-10", "2026-02-09"),
+      isquios(11, "2026-07-01", "2026-07-06"),
+      isquios(12, "2026-05-01", "2026-05-21"),
+      isquios(13, "2026-03-01", "2026-03-06"),
+    ];
+    // El historial no entra en su lugar (en la prueba no hay medidas: se fingen).
+    const medida = (nombre, valor) => Object.defineProperty(HTMLElement.prototype, nombre, { configurable: true, get: () => valor });
+    medida("scrollHeight", 900);
+    medida("clientHeight", 400);
+    try {
+      await montar(GPS, PLANTEL, conMuchas, (campo, codigo) => etiquetaDeOpcion(campo, codigo, null, "es-AR"));
+      await tocar(botonQueEmpieza("Reporte individual"));
+      await tocar(botonQueEmpieza("HULK"));
+      const mapa = contenedor.querySelector(".mapa-jugador");
+      const detalle = () => mapa.querySelector(".mapa-jugador-detalle");
+      expect(detalle().querySelector("h4").textContent).toBe("Isquiotibiales");
+      // De menos a más días de recuperación; con los mismos días, la más vieja primero.
+      expect([...detalle().querySelectorAll("thead th")].map((th) => th.textContent)).toEqual(["Fecha", "Tipo de lesión", "Músculo / ligamento · lado", "Días de recuperación"]);
+      expect([...detalle().querySelectorAll("tbody tr")].map((tr) => `${tr.querySelector(".fecha").textContent} · ${tr.querySelector(".numero").textContent}`)).toEqual([
+        "01/03/2026 · 5",
+        "01/07/2026 · 5",
+        "01/05/2026 · 20",
+        "10/01/2026 · 30",
+      ]);
+      // «Ver todas (4)» lo abre entero y «Ver menos» lo vuelve a cerrar.
+      const verTodas = () => detalle().querySelector(".mapa-jugador-ver-todas");
+      expect(verTodas().textContent).toBe("Ver todas (4)");
+      expect(verTodas().getAttribute("aria-expanded")).toBe("false");
+      expect(detalle().classList.contains("abierto")).toBe(false);
+      await tocar(verTodas());
+      expect(detalle().classList.contains("abierto")).toBe(true);
+      expect(verTodas().textContent).toBe("Ver menos");
+      expect(verTodas().getAttribute("aria-expanded")).toBe("true");
+      await tocar(verTodas());
+      expect(detalle().classList.contains("abierto")).toBe(false);
+      // Abierto, al tocar otra zona vuelve a su lugar.
+      await tocar(verTodas());
+      await tocarZona(mapa.querySelector('.mapa-jugador-toque[data-zona="parte_cuerpo:joelho"]'));
+      expect(detalle().querySelector("h4").textContent).toBe("Rodilla");
+      expect(detalle().classList.contains("abierto")).toBe(false);
+
+      // Con el mouse encima, la zona se resalta (sus formas, de los dos lados); al salir, ya no.
+      const resaltadas = () => [...mapa.querySelectorAll(".mapa-jugador-vistas .mapa-jugador-encima")].map((grupo) => `${grupo.closest("svg").dataset.vista} · ${grupo.dataset.zona} · ${grupo.querySelectorAll("polygon").length}`);
+      expect(resaltadas()).toEqual([]);
+      const gemelo = mapa.querySelector('.mapa-jugador-toque[data-zona="musculo:panturrilha"]');
+      await act(async () => gemelo.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, relatedTarget: null })));
+      expect(resaltadas()).toEqual(["espalda · musculo:panturrilha · 2"]);
+      // Resaltar no la elige.
+      expect(detalle().querySelector("h4").textContent).toBe("Rodilla");
+      await act(async () => gemelo.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: null })));
+      expect(resaltadas()).toEqual([]);
+      // En el zoom del detalle no se resalta nada.
+      expect(detalle().querySelector(".mapa-jugador-encima")).toBeNull();
+    } finally {
+      delete HTMLElement.prototype.scrollHeight;
+      delete HTMLElement.prototype.clientHeight;
+    }
   });
 
   test("el grupal: el cuadro del plantel en el período", async () => {

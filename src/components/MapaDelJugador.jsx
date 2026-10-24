@@ -1,4 +1,4 @@
-import React, { useId, useState } from "react";
+import React, { useId, useLayoutEffect, useRef, useState } from "react";
 import cuerpoDeFrente from "../assets/cuerpo-lesiones-frente.webp";
 import cuerpoDeEspaldas from "../assets/cuerpo-lesiones-espalda.webp";
 import { colorDeCalor } from "./CuerpoConCalor.jsx";
@@ -28,6 +28,11 @@ const LADOS = ["direito", "esquerdo"];
 const COLOR_FAMILIA = { muscular: "#ef4444", tendinosa: "#f97316", articular: "#facc15", osea: "#a78bfa", otras: "#94a3b8" };
 const DIFUSO = 9;
 const PLUMA = 7;
+
+// Un nombre que puede cortarse después de cada «/» (en portugués, las partes
+// del cuerpo van sin espacios: «OMBRO/CLAVÍCULA»), para que en el celular no
+// se corte en la mitad de una palabra.
+const conCortes = (texto) => String(texto).split("/").map((parte, i) => (i ? <React.Fragment key={i}>/<wbr />{parte}</React.Fragment> : parte));
 
 // Un id que sirve adentro de url(#…).
 const useIdLimpio = () => `mapa-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
@@ -73,13 +78,17 @@ const cajaDe = (zona, datos) => {
 // «todavía se ven como si estuvieran dibujadas»), cada zona se esfuma hacia
 // sus bordes en vez de cortarse en línea recta, el centro tiene el color de su
 // cantidad y se va aclarando hacia el amarillo, como en la foto, y no lleva
-// borde (la zona elegida se ve en el detalle).
-const Vista = ({ vista, resumen, tope, caja = null, toques = null, titulo = "" }) => {
+// borde (la zona elegida se ve en el detalle). encima: la zona que tiene el
+// mouse encima, que se resalta en dorado (Santiago, 24/10: «que se resalte
+// cuando paso el mouse por arriba, así se ve que se puede cliquear»).
+const Vista = ({ vista, resumen, tope, caja = null, toques = null, encima = "", titulo = "" }) => {
   const id = useIdLimpio();
   const { ancho, alto } = TAMANO[vista];
   const pintadas = [...resumen.zonas.values()].flatMap((datos) => pintadasDe(datos, vista).map((una) => ({ ...una, clave: claveDeZona(datos.zona) })));
   // Las de menos lesiones primero: la más intensa queda arriba.
   pintadas.sort((a, b) => a.cantidad - b.cantidad);
+  const zonaEncima = encima ? zonaPorClave(encima) : null;
+  const resaltadas = zonaEncima ? formasDe(zonaEncima, vista) : [];
   return (
     <svg
       className="mapa-jugador-svg"
@@ -124,6 +133,14 @@ const Vista = ({ vista, resumen, tope, caja = null, toques = null, titulo = "" }
           </g>
         ))}
       </g>
+      {/* Esfumada como el calor, para que no se vea el dibujo de la zona. */}
+      {resaltadas.length > 0 && (
+        <g className="mapa-jugador-encima" data-zona={encima} mask={`url(#${id}-figura)`} aria-hidden="true">
+          {resaltadas.map(({ forma, lado }) => (
+            <polygon key={`${forma}-${lado}`} points={puntosDe(vista, forma, lado)} filter={`url(#${id}-pluma)`} />
+          ))}
+        </g>
+      )}
       {toques && toques.filter((toque) => toque.vista === vista).map((toque) => <Toque key={toque.clave} toque={toque} />)}
     </svg>
   );
@@ -149,6 +166,8 @@ const Toque = ({ toque }) => {
       aria-hidden={toque.conTeclado ? undefined : true}
       onClick={elegir}
       onKeyDown={elegir}
+      onMouseEnter={toque.onEncima}
+      onMouseLeave={toque.onFuera}
     >
       <title>{toque.nombre}</title>
     </polygon>
@@ -199,6 +218,11 @@ export default function MapaDelJugador({ lesiones, hoy, textoDeOpcion }) {
   const [periodo, setPeriodo] = useState("todo");
   const [rango, setRango] = useState(() => periodoDe("todo", hoy, lesiones));
   const [elegidaAMano, setElegidaAMano] = useState("");
+  const [encima, setEncima] = useState("");
+  // El historial abierto entero (con «Ver todas»), en la zona donde se abrió.
+  const [abiertoEn, setAbiertoEn] = useState("");
+  const [noEntra, setNoEntra] = useState(false);
+  const marco = useRef(null);
   const { desde, hasta } = rango;
   const delPeriodo = lesionesDelReporte(lesiones, { desde, hasta });
   const resumen = resumenDelMapa(delPeriodo, hoy);
@@ -234,6 +258,8 @@ export default function MapaDelJugador({ lesiones, hoy, textoDeOpcion }) {
         esMusculo: unaZona.campo === "musculo",
         elegida: clave === elegida,
         onElegir: () => setElegidaAMano(clave),
+        onEncima: () => setEncima(clave),
+        onFuera: () => setEncima((antes) => (antes === clave ? "" : antes)),
       })),
     );
   })
@@ -245,7 +271,32 @@ export default function MapaDelJugador({ lesiones, hoy, textoDeOpcion }) {
     });
 
   const titulo = t("lesiones.reportes.mapaJugador.titulo");
-  const historial = datos ? [...datos.lesiones].sort((a, b) => String(b.fecha_lesion).localeCompare(String(a.fecha_lesion))) : [];
+  // De la que menos días se perdieron a la que más (Santiago, 24/10: «el
+  // historial se ordena por días perdidos»); con los mismos días, la más vieja
+  // primero.
+  const historial = datos
+    ? datos.lesiones
+        .map((lesion) => ({ lesion, dias: diasPerdidos(lesion, hoy) }))
+        .sort((a, b) => a.dias - b.dias || String(a.lesion.fecha_lesion).localeCompare(String(b.lesion.fecha_lesion)))
+    : [];
+  const abierto = Boolean(zona) && abiertoEn === elegida;
+
+  // Si el historial no entra en su lugar, «Ver todas (N)» lo abre entero
+  // (Santiago, 24/10: «me preocupa el tema del espacio», «que no entre todo»).
+  useLayoutEffect(() => {
+    const elemento = marco.current;
+    if (!elemento) {
+      setNoEntra(false);
+      return undefined;
+    }
+    const medir = () => setNoEntra(elemento.scrollHeight > elemento.clientHeight + 1);
+    medir();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const observador = new ResizeObserver(medir);
+    observador.observe(elemento);
+    if (elemento.firstElementChild) observador.observe(elemento.firstElementChild);
+    return () => observador.disconnect();
+  }, [elegida, historial.length, abierto]);
   const masAfectados = datos ? masAfectadosDe(datos.lesiones).slice(0, 4) : [];
   const caja = zona ? cajaDe(zona, datos) : null;
   const diasDeCadaTipo = diasPorTipo(delPeriodo, hoy).slice(0, TIPOS_EN_LAS_BARRAS);
@@ -317,7 +368,7 @@ export default function MapaDelJugador({ lesiones, hoy, textoDeOpcion }) {
           <div className="mapa-jugador-vistas">
             {VISTAS.map((vista) => (
               <figure key={vista} className="mapa-jugador-vista">
-                <Vista vista={vista} resumen={resumen} tope={tope} toques={toques} titulo={`${titulo} · ${t(`lesiones.reportes.vistas.${vista}`)}`} />
+                <Vista vista={vista} resumen={resumen} tope={tope} toques={toques} encima={encima} titulo={`${titulo} · ${t(`lesiones.reportes.vistas.${vista}`)}`} />
                 <figcaption>{t(`lesiones.reportes.vistas.${vista}`)}</figcaption>
               </figure>
             ))}
@@ -329,7 +380,7 @@ export default function MapaDelJugador({ lesiones, hoy, textoDeOpcion }) {
           {resumen.sinZona > 0 && <p className="mapa-jugador-nota">{plural("lesiones.reportes.mapaJugador.sinZona", resumen.sinZona)}</p>}
         </div>
 
-        <div className="mapa-jugador-detalle" aria-live="polite">
+        <div className={`mapa-jugador-detalle ${abierto ? "abierto" : ""}`.trim()} aria-live="polite">
           <h3>{t("lesiones.reportes.mapaJugador.detalle")}</h3>
           {!zona ? (
             <p className="mapa-jugador-vacio">{t(delPeriodo.length ? "lesiones.reportes.mapaJugador.tocar" : "lesiones.reportes.mapaJugador.sinLesiones")}</p>
@@ -340,7 +391,7 @@ export default function MapaDelJugador({ lesiones, hoy, textoDeOpcion }) {
                   <Vista vista={caja.vista} resumen={resumen} tope={tope} caja={caja} titulo={nombreDe(zona)} />
                 </div>
                 <div className="mapa-jugador-zona-datos">
-                  <h4>{nombreDe(zona)}</h4>
+                  <h4>{conCortes(nombreDe(zona))}</h4>
                   <p className="mapa-jugador-cuenta">
                     <i style={{ background: datos ? colorDeCalor(datos.cantidad, tope) : "transparent" }} aria-hidden="true" />
                     <span>
@@ -371,7 +422,7 @@ export default function MapaDelJugador({ lesiones, hoy, textoDeOpcion }) {
               {historial.length === 0 ? (
                 <p className="mapa-jugador-vacio">{t("lesiones.reportes.mapaJugador.sinLesionesZona")}</p>
               ) : (
-                <div className="mapa-jugador-tabla-marco">
+                <div className="mapa-jugador-tabla-marco" ref={marco}>
                   <table className="mapa-jugador-tabla">
                     <thead>
                       <tr>
@@ -384,7 +435,7 @@ export default function MapaDelJugador({ lesiones, hoy, textoDeOpcion }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {historial.map((lesion) => {
+                      {historial.map(({ lesion, dias }) => {
                         const estructura = estructuraDe(lesion);
                         const tipo = lesion.datos?.tipo_lesion;
                         const lado = ladoDeLesion(lesion) || lesion.datos?.lado;
@@ -403,7 +454,7 @@ export default function MapaDelJugador({ lesiones, hoy, textoDeOpcion }) {
                               {lado && <small>{textoDeOpcion("lado", lado)}</small>}
                             </td>
                             <td className="numero" data-rotulo={t("lesiones.reportes.mapaJugador.columnas.dias")}>
-                              {numero(diasPerdidos(lesion, hoy))}
+                              {numero(dias)}
                               {abierta && <small>{t("lesiones.reportes.mapaJugador.enCurso")}</small>}
                             </td>
                           </tr>
@@ -412,6 +463,11 @@ export default function MapaDelJugador({ lesiones, hoy, textoDeOpcion }) {
                     </tbody>
                   </table>
                 </div>
+              )}
+              {historial.length > 0 && (abierto || noEntra) && (
+                <button type="button" className="mapa-jugador-ver-todas no-imprimir" aria-expanded={abierto} onClick={() => setAbiertoEn(abierto ? "" : elegida)}>
+                  {abierto ? t("lesiones.reportes.mapaJugador.verMenos") : t("lesiones.reportes.mapaJugador.verTodas", { n: historial.length })}
+                </button>
               )}
             </>
           )}

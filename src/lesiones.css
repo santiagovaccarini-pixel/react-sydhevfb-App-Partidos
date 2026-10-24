@@ -2621,6 +2621,19 @@
   stroke-width: 2;
   vector-effect: non-scaling-stroke;
 }
+/* La zona con el mouse encima, en dorado y esfumada: se ve que se puede
+   tocar sin que se note el dibujo. Solo donde hay mouse. */
+.lesiones-marco .mapa-jugador-encima {
+  fill: var(--mj-dorado);
+  opacity: 0.8;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+@media (hover: none) {
+  .lesiones-marco .mapa-jugador-encima {
+    display: none;
+  }
+}
 .lesiones-marco .mapa-jugador-escala {
   display: flex;
   align-items: center;
@@ -2926,6 +2939,43 @@
     overflow-y: auto;
   }
 }
+/* «Ver todas (N)»: si el historial no entra, se abre entero y el panel crece
+   (Santiago, 24/10, «que no entre todo»). */
+.lesiones-marco .mapa-jugador-detalle.abierto {
+  contain: none;
+}
+.lesiones-marco .mapa-jugador-detalle.abierto .mapa-jugador-tabla-marco {
+  flex: none;
+  max-height: none;
+  overflow-y: visible;
+}
+.lesiones-marco .mapa-jugador-ver-todas {
+  flex: none;
+  align-self: center;
+  justify-self: center;
+  min-height: 36px;
+  padding: 0 16px;
+  border: 1px solid rgba(198, 161, 91, 0.45);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--mj-dorado);
+  font-size: 13px;
+  font-weight: 700;
+}
+.lesiones-marco .mapa-jugador-ver-todas:hover {
+  transform: none;
+  border-color: var(--mj-dorado);
+  background: rgba(198, 161, 91, 0.1);
+  box-shadow: none;
+}
+.lesiones-marco .mapa-jugador-ver-todas:active {
+  transform: none;
+  box-shadow: none;
+}
+.lesiones-marco .mapa-jugador-ver-todas:focus-visible {
+  outline: 2px solid var(--mj-dorado);
+  outline-offset: 2px;
+}
 @media screen and (max-width: 1100px) {
   .lesiones-marco .mapa-jugador-cuerpo {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -3039,6 +3089,16 @@
     text-transform: uppercase;
   }
 }
+/* En los celulares más angostos, la zona agrandada un poco más chica: el
+   nombre de la zona entra sin cortarse en la mitad. */
+@media screen and (max-width: 360px) {
+  .lesiones-marco .mapa-jugador-zona {
+    grid-template-columns: minmax(0, 88px) minmax(0, 1fr);
+  }
+  .lesiones-marco .mapa-jugador-zona-datos h4 {
+    font-size: 16px;
+  }
+}
 @media print {
   .lesiones-marco .informe-mapa-jugador {
     padding: 8px 20px 0;
@@ -3064,6 +3124,9 @@
   .lesiones-marco .mapa-jugador-tabla-marco {
     max-height: none;
     overflow: visible;
+  }
+  .lesiones-marco .mapa-jugador-encima {
+    display: none;
   }
   .lesiones-marco .mapa-jugador-cabecera h2 {
     font-size: 16px;
