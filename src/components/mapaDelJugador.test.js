@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { familiaDeTipo, masAfectadosDe, resumenDelMapa, zonaConMas, zonaDeLesion } from "./mapaDelJugador.js";
+import { diasPorTipo, familiaDeTipo, masAfectadosDe, resumenDelMapa, zonaConMas, zonaDeLesion } from "./mapaDelJugador.js";
 import { FORMAS, LADO_A_LA_IZQUIERDA, TAMANO, ZONAS, paresDe, puntosDe } from "./zonasDeLaFigura.js";
 import { OPCIONES } from "../domain/lesionesCampos.js";
 
@@ -57,6 +57,17 @@ describe("el resumen del mapa", () => {
     ]);
     expect(resumenDelMapa([], hoy)).toMatchObject({ tipos: [], sinZona: 0, maximo: 0 });
     expect(zonaConMas(resumenDelMapa([], hoy).zonas)).toBe("");
+  });
+
+  test("los días perdidos de cada tipo de lesión, de más a menos (la abierta, hasta hoy)", () => {
+    expect(diasPorTipo(LESIONES, hoy)).toEqual([
+      { codigo: "entorse", dias: 138, cantidad: 1 },
+      { codigo: "muscular_1b", dias: 38, cantidad: 1 },
+      { codigo: "muscular_2b", dias: 28, cantidad: 1 },
+      { codigo: "muscular_1a", dias: 10, cantidad: 1 },
+      { codigo: "luxacao", dias: 7, cantidad: 1 },
+    ]);
+    expect(diasPorTipo([], hoy)).toEqual([]);
   });
 
   test("lo más afectado: lo más preciso de cada lesión, de más a menos", () => {

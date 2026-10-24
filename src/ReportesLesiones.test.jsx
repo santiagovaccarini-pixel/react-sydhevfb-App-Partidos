@@ -85,6 +85,9 @@ describe("los reportes con los minutos del GPS", () => {
     if (!elemento) throw new Error("no se encontró el botón");
     await act(async () => elemento.click());
   };
+  // Las barras de días perdidos por tipo: «tipo · lesiones · días».
+  const barrasDeDias = (mapa) =>
+    [...mapa.querySelectorAll(".mapa-jugador-dias li")].map((li) => `${li.querySelector(".mapa-jugador-dias-nombre").textContent} · ${li.querySelector("small").textContent} · ${li.querySelector("b").textContent}`);
   // Una zona del cuerpo (un polígono del SVG, que no tiene .click()).
   const tocarZona = async (zona) => {
     if (!zona) throw new Error("no se encontró la zona");
@@ -342,6 +345,8 @@ describe("los reportes con los minutos del GPS", () => {
     expect(detalle().querySelector(".mapa-jugador-zoom svg").getAttribute("viewBox")).not.toBe("0 0 456 1011");
     // La dona: por familia.
     expect([...mapa.querySelectorAll(".mapa-jugador-dona-leyenda li")].map((li) => li.textContent)).toEqual(["Muscular50%", "Articular / ligamentaria50%"]);
+    // Debajo, los tipos con más días perdidos (Santiago, 24/10).
+    expect(barrasDeDias(mapa)).toEqual(["Lesión muscular grado 1 A · 1 lesión · 20", "Esguince / lesión ligamentaria · 1 lesión · 10"]);
     // Se toca la rodilla.
     await tocarZona(mapa.querySelector('.mapa-jugador-toque[data-zona="parte_cuerpo:joelho"]'));
     expect(detalle().querySelector("h4").textContent).toBe("Rodilla");
@@ -377,6 +382,12 @@ describe("los reportes con los minutos del GPS", () => {
     ]);
     const isquios = [...mapa.querySelectorAll('.mapa-jugador-vistas [data-vista="espalda"] .mapa-jugador-calor[data-zona="musculo:isquiotibiais"]')];
     expect(isquios.map((una) => una.dataset.cantidad).sort()).toEqual(["1", "2"]);
+    expect(barrasDeDias(mapa)).toEqual([
+      "Lesión muscular grado 2 A · 1 lesión · 30",
+      "Lesión muscular grado 1 A · 2 lesiones · 23",
+      "Lesión muscular grado 1 B · 1 lesión · 12",
+      "Esguince / lesión ligamentaria · 1 lesión · 10",
+    ]);
     // El período: «Este año» deja afuera la de 2025.
     const periodo = mapa.querySelector(".mapa-jugador-periodo select");
     expect(periodo.value).toBe("todo");
@@ -386,6 +397,13 @@ describe("los reportes con los minutos del GPS", () => {
     });
     expect(detalle().querySelector(".mapa-jugador-cuenta").textContent).toBe("2 lesiones15 días perdidos");
     expect(mapa.querySelector(".mapa-jugador-rango").textContent).toBe("Este año · 01/01/2026 – 02/10/2026");
+    expect(barrasDeDias(mapa)[0]).toBe("Lesión muscular grado 1 A · 2 lesiones · 23");
+    // «Elegir fechas»: las dos fechas, en la misma fila que el período.
+    await act(async () => {
+      periodo.value = "medida";
+      periodo.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(mapa.querySelectorAll(".mapa-jugador-periodo-fila input[type=date]")).toHaveLength(2);
   });
 
   test("el grupal: el cuadro del plantel en el período", async () => {

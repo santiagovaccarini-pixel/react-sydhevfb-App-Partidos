@@ -2583,6 +2583,7 @@ export default {
         titulo: "Mapa corporal de lesiones",
         tocar: "Tocá una zona del cuerpo para ver su detalle.",
         tipo: "Tipo de lesión",
+        diasPorTipo: "Días perdidos por tipo",
         detalle: "Detalle de zona",
         historial: "Historial en esta zona",
         masAfectados: "Lo más afectado",
